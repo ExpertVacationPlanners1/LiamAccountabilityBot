@@ -1,0 +1,32 @@
+{
+  "name": "liam-accountability",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/gym",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/morning",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/midday",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/evening",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/sleep",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
