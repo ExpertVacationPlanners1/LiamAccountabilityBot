@@ -1523,7 +1523,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                   </div>
                 ))}
               </div>
-              <a href="https://t.me/YourBotUsername" target="_blank" rel="noopener noreferrer"
+              <a href="https://t.me/liamaccountabilitybot" target="_blank" rel="noopener noreferrer"
                 style={{ display: "block", marginTop: 14, background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "10px", textAlign: "center", color: "#fff", fontFamily: "'Nunito Sans', sans-serif", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
                 Open Telegram Bot →
               </a>
