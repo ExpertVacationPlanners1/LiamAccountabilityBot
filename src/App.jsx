@@ -170,6 +170,8 @@ export default function LifeDashboard() {
   const [activeTask, setActiveTask] = useState(null);
   const [taskNote, setTaskNote] = useState("");
   const [storageReady, setStorageReady] = useState(false);
+  const [telegramTodos, setTelegramTodos] = useState([]);
+  const [telegramLoading, setTelegramLoading] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
@@ -292,7 +294,30 @@ export default function LifeDashboard() {
   // ── live clock tick every 30s ────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30000);
-    return () => clearInterval(id);
+    const fetchTelegramTodos = async () => {
+    setTelegramLoading(true);
+    try {
+      const r = await fetch('/api/todos');
+      if (r.ok) { const d = await r.json(); setTelegramTodos(d.todos || []); }
+    } catch {}
+    setTelegramLoading(false);
+  };
+  const markTelegramTodoDone = async (id) => {
+    try {
+      await fetch('/api/todos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, done:true}) });
+      setTelegramTodos(prev => prev.map(t => t.id === id ? {...t, done:true} : t));
+    } catch {}
+  };
+  const deleteTelegramTodo = async (id) => {
+    try {
+      await fetch('/api/todos', { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
+      setTelegramTodos(prev => prev.filter(t => t.id !== id));
+    } catch {}
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => { fetchTelegramTodos(); }, []);
+
+  return () => clearInterval(id);
   }, []);
 
   // ── update next alert countdown + trigger check-in modal ────────────────
@@ -1529,6 +1554,33 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
               </a>
             </div>
 
+            <div style={{background:"#fff",borderRadius:12,padding:18,border:"1px solid #ede8e0",marginBottom:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div>
+                  <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:11,fontWeight:700,letterSpacing:2,color:"#0088cc",textTransform:"uppercase",marginBottom:3}}>📱 Telegram Tasks</div>
+                  <div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:17,fontWeight:700,color:"#18181b"}}>From Your Bot</div>
+                </div>
+                <button onClick={fetchTelegramTodos} style={{background:"none",border:"none",fontFamily:"'Nunito Sans',sans-serif",fontSize:10,fontWeight:700,color:"#0088cc",cursor:"pointer",letterSpacing:1}}>
+                  {telegramLoading ? "..." : "REFRESH →"}
+                </button>
+              </div>
+              {telegramTodos.filter(t=>!t.done).length===0 ? (
+                <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:13,color:"#a1a1aa",textAlign:"center",padding:"12px 0"}}>
+                  No tasks yet.<br/><em style={{fontSize:12}}>"add [task] to my list"</em>
+                </div>
+              ) : telegramTodos.filter(t=>!t.done).slice(0,8).map(todo=>{
+                const ce={work:"💼",personal:"🏠",financial:"📈",home:"🏡",family:"👨‍👩‍👦",health:"💪"};
+                const cc={work:"#1c3d2e",personal:"#7c3d00",financial:"#1e3a5f",home:"#5b4a00",family:"#6b21a8",health:"#065f46"};
+                return (<div key={todo.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 0",borderBottom:"1px solid #f0ebe3"}}>
+                  <button onClick={()=>markTelegramTodoDone(todo.id)} style={{width:20,height:20,borderRadius:"50%",border:"2px solid #d0c9be",background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:14,fontWeight:500,color:"#18181b",lineHeight:1.4,wordBreak:"break-word"}}>{todo.text}</div>
+                    <span style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:10,fontWeight:700,color:cc[todo.category]||"#3f3f46",border:`1px solid ${cc[todo.category]||"#3f3f46"}`,padding:"1px 6px",borderRadius:4,marginTop:4,display:"inline-block"}}>{ce[todo.category]||"📌"} {todo.category}</span>
+                  </div>
+                  <button onClick={()=>deleteTelegramTodo(todo.id)} style={{background:"none",border:"none",color:"#ddd",cursor:"pointer",fontSize:16,padding:"0 2px",flexShrink:0}}>×</button>
+                </div>);
+              })}
+            </div>
             {/* Coach card */}
             <div style={{ background: "linear-gradient(135deg,#1c3d2e,#1a2f4a)", borderRadius: 12, padding: 18 }}>
               <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#86efac", textTransform: "uppercase", marginBottom: 10 }}>Coach's Reminder</div>
