@@ -94,7 +94,7 @@ function getNextAlert(alerts, completedToday) {
   const now = new Date();
   const today = now.toDateString();
   const nowMins = now.getHours() * 60 + now.getMinutes();
-  const enabled = alerts.filter(a => a.enabled && completedToday[a.id + "_" + today] !== true);
+  const enabled = (Array.isArray(alerts) ? alerts : []).filter(a => a.enabled && completedToday[a.id + "_" + today] !== true);
   if (!enabled.length) return null;
   const withMins = enabled.map(a => {
     const [h, m] = a.time.split(":").map(Number);
@@ -223,9 +223,20 @@ export default function LifeDashboard() {
   // ── load persisted data on mount ─────────────────────────────────────────
   useEffect(() => {
     const savedGoals = load("lcd_goals", null);
-    if (savedGoals) setGoals(savedGoals);
+    if (savedGoals && typeof savedGoals === 'object') {
+      // Ensure all nested timeframe arrays are actually arrays
+      const safeGoals = {};
+      ["work","personal","financial"].forEach(c => {
+        safeGoals[c] = {};
+        ["week","month","quarter"].forEach(tf => {
+          const val = savedGoals[c]?.[tf];
+          safeGoals[c][tf] = Array.isArray(val) ? val : (INITIAL_GOALS[c]?.[tf] || []);
+        });
+      });
+      setGoals(safeGoals);
+    }
     const savedLog = load("lcd_checkin_log", []);
-    setCheckInLog(savedLog);
+    setCheckInLog(Array.isArray(savedLog) ? savedLog : []);
     const savedCompleted = load("lcd_completed_today", {});
     const today = new Date().toDateString();
     const hasToday = Object.keys(savedCompleted).some(k => k.endsWith(today));
@@ -233,17 +244,17 @@ export default function LifeDashboard() {
     const savedFocus = load("lcd_focus", "");
     setFocusTask(savedFocus);
     const savedAlerts = load("lcd_alerts", null);
-    if (savedAlerts) setAlerts(savedAlerts);
+    if (Array.isArray(savedAlerts) && savedAlerts.length > 0) setAlerts(savedAlerts);
     const savedWins = load("lcd_wins", []);
-    setWins(savedWins);
+    setWins(Array.isArray(savedWins) ? savedWins : []);
     const savedHabits = load("lcd_habits", null);
-    if (savedHabits) setHabits(savedHabits);
+    if (Array.isArray(savedHabits) && savedHabits.length > 0) setHabits(savedHabits);
     const savedConfidence = load("lcd_confidence", []);
     setConfidenceLog(savedConfidence);
     const savedBudget = load("lcd_budget", { income: "", fixedCosts: "", variableCosts: "", stabilityTarget: "" });
     setBudget(savedBudget);
     const savedSavings = load("lcd_savings", null);
-    if (savedSavings) setSavingsGoals(savedSavings);
+    if (Array.isArray(savedSavings) && savedSavings.length > 0) setSavingsGoals(savedSavings);
     const savedDebts = load("lcd_debts", []);
     setDebts(savedDebts);
     const savedOutput = load("lcd_output_rating", 0);
@@ -251,7 +262,7 @@ export default function LifeDashboard() {
     const savedProjects = load("lcd_projects", [{ id: 1, name: "Key work project", status: "in-progress", priority: "high" }]);
     setProjects(savedProjects);
     const savedHistory = load("lcd_history", []);
-    setHistoryLog(savedHistory);
+    setHistoryLog(Array.isArray(savedHistory) ? savedHistory : []);
     setStorageReady(true);
   }, []);
 
