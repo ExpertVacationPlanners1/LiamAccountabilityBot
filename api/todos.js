@@ -1,35 +1,57 @@
-// api/todos.js — uses KV_REST_API_URL + KV_REST_API_TOKEN (Vercel/Upstash)
-const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-const TODOS_KEY = 'liam_todos';
+// api/todos.js — Upstash Redis REST API (correct command format)
 
-async function kvGet() {
-  if (!KV_URL || !KV_TOKEN) {
-    console.error('KV not configured. URL:', !!KV_URL, 'TOKEN:', !!KV_TOKEN);
-    return [];
+// Supports multiple env var naming conventions
+const BASE_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.KV_URL || process.env.REDIS_URL;
+const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_READ_ONLY_TOKEN;
+const KEY = 'liam_todos';
+
+// Upstash REST API uses command array format: ["COMMAND", "key", "value"]
+async function redisGet(key) {
+  if (!BASE_URL || !TOKEN) {
+    console.log('No Redis URL/Token found');
+    return null;
   }
   try {
-    const res = await fetch(`${KV_URL}/get/${TODOS_KEY}`, {
-      headers: { Authorization: `Bearer ${KV_TOKEN}` }
+    const res = await fetch(`${BASE_URL}/get/${key}`, {
+      headers: { Authorization: `Bearer ${TOKEN}` }
     });
     const data = await res.json();
-    return data.result ? JSON.parse(data.result) : [];
+    if (data.result === null || data.result === undefined) return null;
+    return JSON.parse(data.result);
   } catch (e) {
-    console.error('kvGet error:', e);
-    return [];
+    console.error('Redis GET error:', e);
+    return null;
   }
 }
 
-async function kvSet(todos) {
-  if (!KV_URL || !KV_TOKEN) return;
+async function redisSet(key, value) {
+  if (!BASE_URL || !TOKEN) return false;
   try {
-    await fetch(`${KV_URL}/set/${TODOS_KEY}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(JSON.stringify(todos))
+    const encoded = encodeURIComponent(JSON.stringify(value));
+    const res = await fetch(`${BASE_URL}/set/${key}/${encoded}`, {
+      method: 'GET', // Upstash supports GET-style commands
+      headers: { Authorization: `Bearer ${TOKEN}` }
     });
+    const data = await res.json();
+    return data.result === 'OK';
   } catch (e) {
-    console.error('kvSet error:', e);
+    console.error('Redis SET error:', e);
+    // Try alternate format
+    try {
+      const res = await fetch(`${BASE_URL}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(['SET', key, JSON.stringify(value)])
+      });
+      const data = await res.json();
+      return data.result === 'OK';
+    } catch (e2) {
+      console.error('Redis SET fallback error:', e2);
+      return false;
+    }
   }
 }
 
@@ -39,15 +61,24 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // Debug endpoint
+  if (req.method === 'GET' && req.url?.includes('debug')) {
+    return res.status(200).json({
+      has_url: !!BASE_URL,
+      has_token: !!TOKEN,
+      url_prefix: BASE_URL ? BASE_URL.slice(0, 30) + '...' : null
+    });
+  }
+
   if (req.method === 'GET') {
-    const todos = await kvGet();
+    const todos = (await redisGet(KEY)) || [];
     return res.status(200).json({ todos });
   }
 
   if (req.method === 'POST') {
     const { text, category, priority, source } = req.body;
     if (!text) return res.status(400).json({ error: 'text required' });
-    const todos = await kvGet();
+    const todos = (await redisGet(KEY)) || [];
     const newTodo = {
       id: Date.now(),
       text: text.trim(),
@@ -58,28 +89,33 @@ export default async function handler(req, res) {
       createdAt: new Date().toISOString(),
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     };
-    todos.unshift(newTodo);
-    await kvSet(todos.slice(0, 100));
-    return res.status(200).json({ todo: newTodo, todos: todos.slice(0, 100) });
+    const updated = [newTodo, ...todos].slice(0, 100);
+    const ok = await redisSet(KEY, updated);
+    if (!ok) {
+      console.error('Failed to save todo - Redis not configured?');
+      return res.status(500).json({ error: 'Save failed — check Redis env vars' });
+    }
+    return res.status(200).json({ todo: newTodo, todos: updated });
   }
 
   if (req.method === 'PATCH') {
     const { id, done, text } = req.body;
-    const todos = await kvGet();
+    const todos = (await redisGet(KEY)) || [];
     const updated = todos.map(t =>
       t.id === Number(id)
         ? { ...t, ...(done !== undefined ? { done } : {}), ...(text ? { text } : {}) }
         : t
     );
-    await kvSet(updated);
+    await redisSet(KEY, updated);
     return res.status(200).json({ todos: updated });
   }
 
   if (req.method === 'DELETE') {
     const { id } = req.body;
-    const todos = await kvGet();
-    await kvSet(todos.filter(t => t.id !== Number(id)));
-    return res.status(200).json({ ok: true });
+    const todos = (await redisGet(KEY)) || [];
+    const updated = todos.filter(t => t.id !== Number(id));
+    await redisSet(KEY, updated);
+    return res.status(200).json({ todos: updated });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
