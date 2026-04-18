@@ -172,6 +172,7 @@ export default function LifeDashboard() {
   const [storageReady, setStorageReady] = useState(false);
   const [telegramTodos, setTelegramTodos] = useState([]);
   const [telegramLoading, setTelegramLoading] = useState(false);
+  const [showTelegramTodos, setShowTelegramTodos] = useState(true);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceProcessing, setVoiceProcessing] = useState(false);
@@ -289,35 +290,41 @@ export default function LifeDashboard() {
   useEffect(() => { if (storageReady) persist("lcd_output_rating", outputRating); }, [outputRating, storageReady]);
   useEffect(() => { if (storageReady) persist("lcd_projects", projects); }, [projects, storageReady]);
   useEffect(() => { if (storageReady) persist("lcd_history", historyLog); }, [historyLog, storageReady]);
-  useEffect(() => { if (storageReady) persist("lcd_history", historyLog); }, [historyLog, storageReady]);
 
-  // ── live clock tick every 30s ────────────────────────────────────────────
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30000);
-    const fetchTelegramTodos = async () => {
+  // ── fetch telegram todos from API ─────────────────────────────────────────
+  const fetchTelegramTodos = async () => {
     setTelegramLoading(true);
     try {
-      const r = await fetch('/api/todos');
-      if (r.ok) { const d = await r.json(); setTelegramTodos(d.todos || []); }
+      const res = await fetch('/api/todos');
+      if (res.ok) {
+        const data = await res.json();
+        setTelegramTodos(data.todos || []);
+      }
     } catch {}
     setTelegramLoading(false);
   };
+
   const markTelegramTodoDone = async (id) => {
     try {
       await fetch('/api/todos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, done:true}) });
       setTelegramTodos(prev => prev.map(t => t.id === id ? {...t, done:true} : t));
     } catch {}
   };
+
   const deleteTelegramTodo = async (id) => {
     try {
       await fetch('/api/todos', { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
       setTelegramTodos(prev => prev.filter(t => t.id !== id));
     } catch {}
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => { fetchTelegramTodos(); }, []);
 
-  return () => clearInterval(id);
+  useEffect(() => { fetchTelegramTodos(); }, []);
+  useEffect(() => { if (storageReady) persist("lcd_history", historyLog); }, [historyLog, storageReady]);
+
+  // ── live clock tick every 30s ────────────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
   }, []);
 
   // ── update next alert countdown + trigger check-in modal ────────────────
@@ -438,7 +445,7 @@ User said: "${transcript}"
 Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_checkin|set_focus","data":{"note":"","focus":""}}`;
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 200, messages: [{ role: "user", content: prompt }] })
       });
       const json = await res.json();
@@ -460,44 +467,74 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
   };
 
   // ── calendar ────────────────────────────────────────────────────────────
-  const loadCalendar = async () => {
-    setCalLoading(true); setCalError("");
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 800,
-          mcp_servers: [{ type: "url", url: "https://gcal.mcp.claude.com/mcp", name: "google-calendar" }],
-          messages: [{ role: "user", content: "List all of today's calendar events. Return ONLY valid JSON with no markdown: {events:[{title,start,end,color}]} where start/end are HH:MM strings." }]
-        })
-      });
-      const json = await res.json();
-      const textBlocks = json.content?.filter(b => b.type === "text").map(b => b.text||"").join("").trim().replace(/```json|```/g,"").trim();
-      const parsed = JSON.parse(textBlocks);
-      setCalEvents(parsed.events || []);
-    } catch { setCalError("Could not load calendar. Make sure Google Calendar is connected."); }
-    setCalLoading(false);
+  const loadCalendar = () => {
+    // Show today's scheduled touchpoints as calendar entries
+    const today = new Date();
+    const dateStr = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    setCalEvents([
+      { title: "🏋️ Gym", start: "05:00", end: "06:00", color: "#1c3d2e" },
+      { title: "☀️ Morning Intention", start: "08:00", end: "08:15", color: "#c9a96e" },
+      { title: "⚡ Midday Pulse", start: "13:00", end: "13:10", color: "#1e3a5f" },
+      { title: "🌙 Evening Review", start: "20:00", end: "20:15", color: "#7c3d00" },
+      { title: "😴 Pre-Sleep Wind Down", start: "22:00", end: "22:10", color: "#4a1d96" },
+    ]);
+    setCalError("");
   };
 
-  const addRoutineToCalendar = async () => {
-    setCalLoading(true);
-    try {
-      await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 500,
-          mcp_servers: [{ type: "url", url: "https://gcal.mcp.claude.com/mcp", name: "google-calendar" }],
-          messages: [{ role: "user", content: "Create these recurring daily events for a morning routine (Mon-Fri, starting tomorrow): 1) '🏋️ Gym' 5:00-6:00am, 2) 'Morning Routine & Prep' 6:00-6:50am, 3) '📊 Dashboard Check-In' 6:25-6:30am. Also create a weekly recurring event: '📚 Personal Development' every Saturday 8:00-8:30am. Confirm when done." }]
-        })
-      });
-      setCalEvents(prev => [...prev,
-        { title: "🏋️ Gym", start: "05:00", end: "06:00", color: "#1c3d2e" },
-        { title: "📊 Dashboard Check-In", start: "06:25", end: "06:30", color: "#c9a96e" },
-        { title: "📚 Personal Development", start: "08:00", end: "08:30", color: "#7c3d00" },
-      ]);
-      setSavedToast(true); setTimeout(() => setSavedToast(false), 3000);
-    } catch {}
-    setCalLoading(false);
+  const addRoutineToCalendar = () => {
+    // Generate ICS file that opens in Apple Calendar / Google Calendar
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const pad = n => String(n).padStart(2, "0");
+    const dateBase = `${tomorrow.getFullYear()}${pad(tomorrow.getMonth()+1)}${pad(tomorrow.getDate())}`;
+
+    const events = [
+      { summary: "🏋️ Gym", start: `${dateBase}T050000`, end: `${dateBase}T060000`, rrule: "RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR" },
+      { summary: "☀️ Morning Intention (Accountability)", start: `${dateBase}T080000`, end: `${dateBase}T081500`, rrule: "RRULE:FREQ=DAILY" },
+      { summary: "📊 Dashboard Check-In", start: `${dateBase}T062500`, end: `${dateBase}T063000`, rrule: "RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR" },
+      { summary: "⚡ Midday Accountability Pulse", start: `${dateBase}T130000`, end: `${dateBase}T131000`, rrule: "RRULE:FREQ=DAILY" },
+      { summary: "🌙 Evening Review", start: `${dateBase}T200000`, end: `${dateBase}T201500`, rrule: "RRULE:FREQ=DAILY" },
+      { summary: "😴 Pre-Sleep Wind Down", start: `${dateBase}T220000`, end: `${dateBase}T221000`, rrule: "RRULE:FREQ=DAILY" },
+    ];
+
+    const icsLines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Liam Accountability//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+    ];
+
+    events.forEach(ev => {
+      icsLines.push(
+        "BEGIN:VEVENT",
+        `UID:${ev.summary.replace(/\s/g,"")}-${Date.now()}@liam`,
+        `DTSTART:${ev.start}`,
+        `DTEND:${ev.end}`,
+        `SUMMARY:${ev.summary}`,
+        ev.rrule,
+        "END:VEVENT"
+      );
+    });
+    icsLines.push("END:VCALENDAR");
+
+    const blob = new Blob([icsLines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "liam-accountability-routine.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setCalEvents([
+      { title: "🏋️ Gym", start: "05:00", end: "06:00", color: "#1c3d2e" },
+      { title: "☀️ Morning Intention", start: "08:00", end: "08:15", color: "#c9a96e" },
+      { title: "⚡ Midday Pulse", start: "13:00", end: "13:10", color: "#1e3a5f" },
+      { title: "🌙 Evening Review", start: "20:00", end: "20:15", color: "#7c3d00" },
+      { title: "😴 Pre-Sleep Wind Down", start: "22:00", end: "22:10", color: "#4a1d96" },
+    ]);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 3000);
   };
 
   const getPct = (c, tf) => {
@@ -524,7 +561,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 1000,
           messages: [{ role: "user", content: SMART_PROMPT + "\n\nCompletion data:\n" + JSON.stringify(data) }]
@@ -1548,39 +1585,62 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                   </div>
                 ))}
               </div>
-              <a href="https://t.me/liamaccountabilitybot" target="_blank" rel="noopener noreferrer"
+              <a href="https://t.me/YourBotUsername" target="_blank" rel="noopener noreferrer"
                 style={{ display: "block", marginTop: 14, background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "10px", textAlign: "center", color: "#fff", fontFamily: "'Nunito Sans', sans-serif", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
                 Open Telegram Bot →
               </a>
             </div>
 
-            <div style={{background:"#fff",borderRadius:12,padding:18,border:"1px solid #ede8e0",marginBottom:0}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            {/* Telegram Tasks */}
+            <div className="card" style={{ padding: 18 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 14 }}>
                 <div>
-                  <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:11,fontWeight:700,letterSpacing:2,color:"#0088cc",textTransform:"uppercase",marginBottom:3}}>📱 Telegram Tasks</div>
-                  <div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:17,fontWeight:700,color:"#18181b"}}>From Your Bot</div>
+                  <div style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:11, fontWeight:700, letterSpacing:2, color:"#0088cc", textTransform:"uppercase", marginBottom:3 }}>📱 Telegram Tasks</div>
+                  <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:17, fontWeight:700, color:"#18181b" }}>From Your Bot</div>
                 </div>
-                <button onClick={fetchTelegramTodos} style={{background:"none",border:"none",fontFamily:"'Nunito Sans',sans-serif",fontSize:10,fontWeight:700,color:"#0088cc",cursor:"pointer",letterSpacing:1}}>
+                <button onClick={fetchTelegramTodos} style={{ background:"none", border:"none", fontFamily:"'Nunito Sans',sans-serif", fontSize:10, fontWeight:700, color:"#0088cc", cursor:"pointer", letterSpacing:1 }}>
                   {telegramLoading ? "..." : "REFRESH →"}
                 </button>
               </div>
-              {telegramTodos.filter(t=>!t.done).length===0 ? (
-                <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:13,color:"#a1a1aa",textAlign:"center",padding:"12px 0"}}>
-                  No tasks yet.<br/><em style={{fontSize:12}}>"add [task] to my list"</em>
+              {telegramTodos.filter(t => !t.done).length === 0 ? (
+                <div style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:13, color:"#a1a1aa", textAlign:"center", padding:"12px 0" }}>
+                  No tasks yet. Tell your bot:<br/>
+                  <em style={{ fontSize:12 }}>"add [task] to my [category] list"</em>
                 </div>
-              ) : telegramTodos.filter(t=>!t.done).slice(0,8).map(todo=>{
-                const ce={work:"💼",personal:"🏠",financial:"📈",home:"🏡",family:"👨‍👩‍👦",health:"💪"};
-                const cc={work:"#1c3d2e",personal:"#7c3d00",financial:"#1e3a5f",home:"#5b4a00",family:"#6b21a8",health:"#065f46"};
-                return (<div key={todo.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 0",borderBottom:"1px solid #f0ebe3"}}>
-                  <button onClick={()=>markTelegramTodoDone(todo.id)} style={{width:20,height:20,borderRadius:"50%",border:"2px solid #d0c9be",background:"transparent",cursor:"pointer",flexShrink:0,marginTop:2}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:14,fontWeight:500,color:"#18181b",lineHeight:1.4,wordBreak:"break-word"}}>{todo.text}</div>
-                    <span style={{fontFamily:"'Nunito Sans',sans-serif",fontSize:10,fontWeight:700,color:cc[todo.category]||"#3f3f46",border:`1px solid ${cc[todo.category]||"#3f3f46"}`,padding:"1px 6px",borderRadius:4,marginTop:4,display:"inline-block"}}>{ce[todo.category]||"📌"} {todo.category}</span>
-                  </div>
-                  <button onClick={()=>deleteTelegramTodo(todo.id)} style={{background:"none",border:"none",color:"#ddd",cursor:"pointer",fontSize:16,padding:"0 2px",flexShrink:0}}>×</button>
-                </div>);
-              })}
+              ) : (
+                telegramTodos.filter(t => !t.done).slice(0, 8).map(todo => {
+                  const catColors = { work:"#1c3d2e", personal:"#7c3d00", financial:"#1e3a5f", home:"#5b4a00", family:"#6b21a8", health:"#065f46" };
+                  const catEmoji = { work:"💼", personal:"🏠", financial:"📈", home:"🏡", family:"👨‍👩‍👦", health:"💪" };
+                  const color = catColors[todo.category] || "#3f3f46";
+                  return (
+                    <div key={todo.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:"1px solid #f0ebe3" }}>
+                      <button onClick={() => markTelegramTodoDone(todo.id)} style={{ width:20, height:20, borderRadius:"50%", border:"2px solid #d0c9be", background:"transparent", cursor:"pointer", flexShrink:0, marginTop:2, transition:"all .2s" }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:14, fontWeight:500, color:"#18181b", lineHeight:1.4, wordBreak:"break-word" }}>{todo.text}</div>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
+                          <span style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:10, fontWeight:700, color:color, border:`1px solid ${color}`, padding:"1px 6px", borderRadius:4 }}>
+                            {catEmoji[todo.category]||"📌"} {todo.category}
+                          </span>
+                          <span style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:10, color:"#a1a1aa" }}>{todo.date}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => deleteTelegramTodo(todo.id)} style={{ background:"none", border:"none", color:"#ddd", cursor:"pointer", fontSize:16, padding:"0 2px", flexShrink:0 }}>×</button>
+                    </div>
+                  );
+                })
+              )}
+              {telegramTodos.filter(t => t.done).length > 0 && (
+                <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid #f0ebe3" }}>
+                  <div style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:10, fontWeight:700, color:"#a1a1aa", letterSpacing:1.5, textTransform:"uppercase", marginBottom:6 }}>Completed</div>
+                  {telegramTodos.filter(t => t.done).slice(0,3).map(todo => (
+                    <div key={todo.id} style={{ fontFamily:"'Nunito Sans',sans-serif", fontSize:13, color:"#a1a1aa", textDecoration:"line-through", padding:"3px 0" }}>
+                      {todo.text}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
             {/* Coach card */}
             <div style={{ background: "linear-gradient(135deg,#1c3d2e,#1a2f4a)", borderRadius: 12, padding: 18 }}>
               <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#86efac", textTransform: "uppercase", marginBottom: 10 }}>Coach's Reminder</div>
