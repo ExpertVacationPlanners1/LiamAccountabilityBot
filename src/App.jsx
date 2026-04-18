@@ -131,17 +131,17 @@ export default function App() {
   const [tab, setTab] = useState("work");
 
   // ── Task state (in-memory, safe) ──
-  const [done, setDone] = useState({});
+  const [done, setDone] = useState(() => lsGet("v3_done", {}));
 
   // ── Focus ──
   const [focus, setFocus] = useState(() => lsGet("v3_focus", ""));
   const [focusInput, setFocusInput] = useState(() => lsGet("v3_focus", ""));
 
   // ── Habits (in-memory) ──
-  const [habits, setHabits] = useState(HABITS_DEFAULT);
+  const [habits, setHabits] = useState(() => { const saved = lsGet("v3_habits", null); return Array.isArray(saved) && saved.length === HABITS_DEFAULT.length ? saved : HABITS_DEFAULT; });
 
   // ── Confidence ──
-  const [confidence, setConfidence] = useState(5);
+  const [confidence, setConfidence] = useState(() => lsGet("v3_confidence", 5));
   const [confSaved, setConfSaved] = useState(false);
 
   // ── Wins ──
@@ -165,16 +165,16 @@ export default function App() {
   const [tgLoading, setTgLoading] = useState(false);
 
   // ── Budget (in-memory) ──
-  const [budget, setBudget] = useState({ income: "", fixed: "", variable: "", target: "" });
+  const [budget, setBudget] = useState(() => lsGet("v3_budget", { income: "", fixed: "", variable: "", target: "" }));
 
   // ── Toast ──
   const [toast, setToast] = useState("");
 
   // ── Savings goals ──
-  const [savings, setSavings] = useState([
+  const [savings, setSavings] = useState(() => lsGet("v3_savings", [
     { id: 1, name: "Emergency Fund (3mo)", target: 5000, current: 0 },
     { id: 2, name: "Family Stability Buffer", target: 2000, current: 0 },
-  ]);
+  ]));
 
   // ─── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -225,7 +225,7 @@ export default function App() {
     } catch {}
   };
 
-  const toggleTask = (id) => setDone(p => ({ ...p, [id]: !p[id] }));
+  const toggleTask = (id) => { const next = (prev => ({ ...prev, [id]: !prev[id] }))(done); setDone(next); lsSet("v3_done", next); };
 
   const saveFocus = () => {
     lsSet("v3_focus", focusInput);
@@ -234,9 +234,13 @@ export default function App() {
   };
 
   const toggleHabit = (id) => {
-    setHabits(prev => prev.map(h =>
-      h.id === id ? { ...h, done: !h.done, streak: !h.done ? h.streak + 1 : Math.max(0, h.streak - 1) } : h
-    ));
+    setHabits(prev => {
+      const next = prev.map(h =>
+        h.id === id ? { ...h, done: !h.done, streak: !h.done ? h.streak + 1 : Math.max(0, h.streak - 1) } : h
+      );
+      lsSet("v3_habits", next);
+      return next;
+    });
   };
 
   const addWin = () => {
@@ -258,6 +262,7 @@ export default function App() {
   };
 
   const saveConfidence = () => {
+    lsSet("v3_confidence", confidence);
     setConfSaved(true);
     setTimeout(() => setConfSaved(false), 2000);
     showToast(`Confidence: ${confidence}/10 logged`);
@@ -512,7 +517,7 @@ export default function App() {
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#71717a", letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>{f.label}</label>
                 <input
                   value={budget[f.key]}
-                  onChange={e => setBudget(p => ({ ...p, [f.key]: e.target.value }))}
+                  onChange={e => { const next = { ...budget, [f.key]: e.target.value }; setBudget(next); lsSet('v3_budget', next); }}
                   placeholder={f.placeholder}
                 />
               </div>
