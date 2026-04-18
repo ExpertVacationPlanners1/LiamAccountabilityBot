@@ -224,13 +224,13 @@ export default function LifeDashboard() {
   useEffect(() => {
     const savedGoals = load("lcd_goals", null);
     if (savedGoals && typeof savedGoals === 'object') {
-      // Ensure all nested timeframe arrays are actually arrays
+      // Merge saved goals with INITIAL_GOALS, preserving metadata, guarding arrays
       const safeGoals = {};
       ["work","personal","financial"].forEach(c => {
-        safeGoals[c] = {};
+        safeGoals[c] = { ...INITIAL_GOALS[c] }; // keep label, icon, color, accent
         ["week","month","quarter"].forEach(tf => {
           const val = savedGoals[c]?.[tf];
-          safeGoals[c][tf] = Array.isArray(val) ? val : (INITIAL_GOALS[c]?.[tf] || []);
+          safeGoals[c][tf] = Array.isArray(val) ? val : INITIAL_GOALS[c][tf];
         });
       });
       setGoals(safeGoals);
@@ -343,7 +343,7 @@ export default function LifeDashboard() {
     setNextAlert(getNextAlert(alerts, completedToday));
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    alerts.forEach(a => {
+    (Array.isArray(alerts) ? alerts : []).forEach(a => {
       const key = `${a.id}_${hhmm}`;
       if (a.enabled && a.time === hhmm && !firedRef.current[key]) {
         firedRef.current[key] = true;
@@ -835,7 +835,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <button className="btn" onClick={runAI} style={{ background: "#1c3d2e", color: "#fff" }}>✦ AI Analysis</button>
                 <button className="btn" onClick={() => setShowAlerts(true)} style={{ background: "#f5f2ed", color: "#666", border: "1.5px solid #e0d9ce" }}>
-                  ⏱ Alerts ({alerts.filter(a => a.enabled).length} active)
+                  ⏱ Alerts ({(Array.isArray(alerts) ? alerts : []).filter(a => a.enabled).length} active)
                 </button>
               </div>
             </div>
@@ -1060,7 +1060,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                 {wins.length === 0
                   ? <div style={{ padding: "16px 0", fontFamily: "'Nunito Sans', sans-serif", fontSize: 13, color: "#a1a1aa", textAlign: "center" }}>No wins logged yet. Start today — even small ones count.</div>
                   : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-                      {wins.slice(0, 9).map(w => (
+                      {(Array.isArray(wins) ? wins : []).slice(0, 9).map(w => (
                         <div key={w.id} style={{ background: "#f0f7f3", borderRadius: 10, padding: "12px 14px", borderLeft: "3px solid #2d6a4f" }}>
                           <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, color: "#2d6a4f", marginBottom: 4 }}>{w.date}</div>
                           <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 14, fontWeight: 500, color: "#18181b", lineHeight: 1.5 }}>{w.text}</div>
@@ -1077,7 +1077,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                 <div className="card" style={{ padding: 22 }}>
                   <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#2d6a4f", textTransform: "uppercase", marginBottom: 4 }}>📋 Projects</div>
                   <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#18181b", marginBottom: 14 }}>Active Work</div>
-                  {projects.map(p => (
+                  {(Array.isArray(projects) ? projects : []).map(p => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #f0ebe3" }}>
                       <select value={p.status} onChange={e => setProjects(prev => prev.map(x => x.id === p.id ? { ...x, status: e.target.value } : x))}
                         style={{ border: "none", background: p.status === "done" ? "#f0fdf4" : p.status === "blocked" ? "#fef2f2" : "#fdf9ec", color: p.status === "done" ? "#16a34a" : p.status === "blocked" ? "#dc2626" : "#d97706", fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "4px 8px", cursor: "pointer", outline: "none" }}>
@@ -1129,7 +1129,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                   <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#c2700f", textTransform: "uppercase", marginBottom: 4 }}>🔥 Habit Streaks</div>
                   <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#18181b", marginBottom: 4 }}>Daily Non-Negotiables</div>
                   <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 13, color: "#71717a", marginBottom: 18 }}>Tap to mark done. Streaks reset at midnight.</div>
-                  {habits.map(h => (
+                  {(Array.isArray(habits) ? habits : []).map(h => (
                     <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #f0ebe3" }}>
                       <button onClick={() => { const going = !h.todayDone; setHabits(prev => prev.map(x => x.id === h.id ? { ...x, todayDone: going, streak: going ? x.streak + 1 : Math.max(0, x.streak - 1) } : x)); if (going) addHistory("habit", h.name + " completed", "Streak: " + (h.streak + 1) + " days", "personal"); }}
                         style={{ width: 36, height: 36, borderRadius: "50%", border: "2px solid " + (h.todayDone ? "#16a34a" : "#e8e0d4"), background: h.todayDone ? "#16a34a" : "transparent", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", flexShrink: 0 }}>
@@ -1244,7 +1244,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                 <div className="card" style={{ padding: 22 }}>
                   <div style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#2563eb", textTransform: "uppercase", marginBottom: 4 }}>🎯 Savings Goals</div>
                   <div style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 700, color: "#18181b", marginBottom: 18 }}>Building Your Floor</div>
-                  {savingsGoals.map(g => {
+                  {(Array.isArray(savingsGoals) ? savingsGoals : []).map(g => {
                     const pct = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
                     return (
                       <div key={g.id} style={{ marginBottom: 16 }}>
@@ -1296,7 +1296,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
                       </div>
                     </div>
                   )}
-                  {debts.map(d => (
+                  {(Array.isArray(debts) ? debts : []).map(d => (
                     <div key={d.id} style={{ background: "#fef2f2", borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid #fecaca" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <span style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 14, fontWeight: 700, color: "#18181b" }}>{d.name}</span>
@@ -1735,7 +1735,7 @@ Return ONLY valid JSON: {"speech":"1-2 sentence response","action":"none|add_che
           <div className="modal up" onClick={e => e.stopPropagation()}>
             <h2 style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 24, fontWeight: 700, marginBottom: 6 }}>Accountability Schedule</h2>
             <p style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 14, color: "#a1a1aa", fontWeight: 500, marginBottom: 20 }}>In-app check-in prompts — no browser permissions needed</p>
-            {alerts.map(a => (
+            {(Array.isArray(alerts) ? alerts : []).map(a => (
               <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 9, border: "1.5px solid #f0ebe3", marginBottom: 8, background: "#fdfaf6" }}>
                 <button className={"toggle" + (a.enabled ? " on" : "")} onClick={() => setAlerts(p => p.map(x => x.id === a.id ? { ...x, enabled: !x.enabled } : x))} />
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 500, color: "#18181b", minWidth: 52 }}>{a.time}</span>
