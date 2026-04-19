@@ -352,7 +352,13 @@ export default function App() {
     } catch {}
   };
 
-  const toggleTask = (id) => { const next = (prev => ({ ...prev, [id]: !prev[id] }))(done); setDone(next); lsSet("v3_done", next); };
+  const toggleTask = (id) => {
+    setDone(prev => {
+      const next = { ...prev, [id]: !prev[id] };
+      lsSet("v3_done", next);
+      return next;
+    });
+  };
 
   const saveFocus = () => {
     lsSet("v3_focus", focusInput);
@@ -405,6 +411,16 @@ export default function App() {
       if (r.ok) {
         const d = await r.json();
         if (d.briefing) {
+          // Merge in localStorage challenges as backup if Redis lost them
+          const saved = lsGet("v3_briefing_challenges", null);
+          const savedDate = lsGet("v3_briefing_date", "");
+          const today = new Date().toDateString();
+          if (saved && savedDate === today) {
+            d.briefing.challengesCompleted = {
+              ...d.briefing.challengesCompleted,
+              ...Object.fromEntries(Object.entries(saved).filter(([,v]) => v === true))
+            };
+          }
           setBriefing(d.briefing);
           setBriefingLoading(false);
           return;
@@ -427,24 +443,39 @@ export default function App() {
         : { challenge: "Protect your morning routine from first meeting to last task.", why: "Your morning routine is your competitive edge — guard it every day.", points: 15 },
       financial: { challenge: "Review your bank balance and log one budget number in the app.", why: "Facing your numbers removes the anxiety of avoiding them.", points: 15 },
       targetScore: isWknd ? 65 : 75,
-      challengesCompleted: { work: false, personal: false, financial: false }
+      challengesCompleted: (() => {
+        const saved = lsGet("v3_briefing_challenges", null);
+        const today = new Date().toDateString();
+        const savedDate = lsGet("v3_briefing_date", "");
+        // Only restore if saved on same day
+        if (saved && savedDate === today) return saved;
+        lsSet("v3_briefing_date", today);
+        return { work: false, personal: false, financial: false };
+      })()
     };
     setBriefing(fallback);
     setBriefingLoading(false);
   };
 
   const completeBriefingChallenge = async (category) => {
+    // Update local state immediately
+    setBriefing(prev => {
+      const updated = prev ? {
+        ...prev,
+        challengesCompleted: { ...(prev.challengesCompleted || {}), [category]: true }
+      } : prev;
+      // Save to localStorage as backup
+      if (updated) lsSet("v3_briefing_challenges", updated.challengesCompleted);
+      return updated;
+    });
+    showToast(category.charAt(0).toUpperCase() + category.slice(1) + " challenge complete! +" + (category === 'work' ? 20 : 15) + " pts");
+    // Also save to Redis (best effort)
     try {
       await fetch('/api/briefing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category })
       });
-      setBriefing(prev => prev ? {
-        ...prev,
-        challengesCompleted: { ...(prev.challengesCompleted || {}), [category]: true }
-      } : prev);
-      showToast(category.charAt(0).toUpperCase() + category.slice(1) + " challenge complete! +" + (category === 'work' ? 20 : 15) + " pts");
     } catch {}
   };
 
@@ -469,7 +500,7 @@ export default function App() {
     const recentWin = wins[0]?.text || "none logged today";
     const confScore = confidence;
 
-    const currentScore = calcDailyScore(done, habits, focus, wins, confidence);
+    const currentScore = calcDailyScore(done, habits, focus, wins, confidence, isWeekend);
     const progress = [
       "You are Liam's personal life coach. It's " + timeOfDay + " on " + new Date().toLocaleDateString("en-US",{weekday:"long"}) + ".",
       "",
@@ -695,7 +726,11 @@ export default function App() {
                   {briefing.challengesCompleted && (
                     <div style={{ marginTop: 14, padding: "10px 14px", background: "#f7f4ef", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 600, color: "#52525b" }}>
-                        {Object.values(briefing.challengesCompleted).filter(Boolean).length}/3 challenges complete
+                        {(() => {
+                          const activeKeys = isWeekend ? ["personal","financial"] : ["work","personal","financial"];
+                          const doneCount = activeKeys.filter(k => briefing.challengesCompleted[k]).length;
+                          return doneCount + "/" + activeKeys.length + " challenges complete";
+                        })()}
                       </span>
                       <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 12, color: "#1c3d2e", fontWeight: 700 }}>
                         {(briefing.challengesCompleted.work ? briefing.work.points : 0) +
