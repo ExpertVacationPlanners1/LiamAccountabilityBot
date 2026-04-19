@@ -80,6 +80,15 @@ const FINANCIAL_TASKS = [
 
 const ALL_TASKS = { work: WORK_TASKS, personal: PERSONAL_TASKS, financial: FINANCIAL_TASKS };
 
+
+const HABITS_DEFAULT = [
+  { id: 1, name: "Gym", icon: "🏋️", streak: 0, done: false },
+  { id: 2, name: "Sleep on time", icon: "😴", streak: 0, done: false },
+  { id: 3, name: "No phone 10min AM", icon: "📵", streak: 0, done: false },
+  { id: 4, name: "Read / Learn", icon: "📚", streak: 0, done: false },
+];
+
+
 // ─── Scoring Engine ───────────────────────────────────────────────────────────
 // Points per task based on priority
 const TASK_POINTS = { high: 8, medium: 5, low: 3 };
@@ -138,14 +147,6 @@ function calcDailyScore(done, habits, focus, wins, confidence) {
 
   return { pct, raw, max: MAX_TOTAL, breakdown, tier, taskScore, habitScore };
 }
-
-const HABITS_DEFAULT = [
-  { id: 1, name: "Gym", icon: "🏋️", streak: 0, done: false },
-  { id: 2, name: "Sleep on time", icon: "😴", streak: 0, done: false },
-  { id: 3, name: "No phone 10min AM", icon: "📵", streak: 0, done: false },
-  { id: 4, name: "Read / Learn", icon: "📚", streak: 0, done: false },
-];
-
 const CAT_COLOR = { work: "#1c3d2e", personal: "#7c3d00", financial: "#1e3a5f", home: "#5b4a00", family: "#6b21a8", health: "#065f46" };
 const CAT_EMOJI = { work: "💼", personal: "🏠", financial: "📈", home: "🏡", family: "👨‍👩‍👦", health: "💪" };
 const PRI_COLOR = { high: "#dc2626", medium: "#d97706", low: "#16a34a" };
