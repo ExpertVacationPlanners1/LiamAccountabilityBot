@@ -398,7 +398,10 @@ export default function App() {
   const fetchBriefing = async (force = false) => {
     setBriefingLoading(true);
     try {
-      const r = await fetch('/api/briefing' + (force ? '?force=true' : ''));
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      const r = await fetch('/api/briefing' + (force ? '?force=true' : ''), { signal: controller.signal });
+      clearTimeout(timeout);
       if (r.ok) {
         const d = await r.json();
         if (d.briefing) {
