@@ -80,6 +80,65 @@ const FINANCIAL_TASKS = [
 
 const ALL_TASKS = { work: WORK_TASKS, personal: PERSONAL_TASKS, financial: FINANCIAL_TASKS };
 
+// ─── Scoring Engine ───────────────────────────────────────────────────────────
+// Points per task based on priority
+const TASK_POINTS = { high: 8, medium: 5, low: 3 };
+// Max possible from tasks
+const MAX_TASK_SCORE = (() => {
+  let total = 0;
+  Object.values(ALL_TASKS).forEach(tasks => tasks.forEach(t => { total += TASK_POINTS[t.priority] || 5; }));
+  return total;
+})();
+const MAX_HABIT_SCORE = HABITS_DEFAULT.length * 10; // 10pts per habit
+const MAX_FOCUS_SCORE = 10;   // 5 for setting it, 5 bonus for mentioning it in a win
+const MAX_WIN_SCORE = 6;      // 3 pts per win, up to 2 wins
+const MAX_CONFIDENCE_SCORE = 4; // up to 4 pts based on logging it
+const MAX_TOTAL = MAX_TASK_SCORE + MAX_HABIT_SCORE + MAX_FOCUS_SCORE + MAX_WIN_SCORE + MAX_CONFIDENCE_SCORE;
+
+function calcDailyScore(done, habits, focus, wins, confidence) {
+  // Task score
+  let taskScore = 0;
+  Object.values(ALL_TASKS).forEach(tasks =>
+    tasks.forEach(t => { if (done[t.id]) taskScore += TASK_POINTS[t.priority] || 5; })
+  );
+
+  // Habit score
+  const habitScore = habits.filter(h => h.done).length * 10;
+
+  // Focus score
+  const focusScore = focus && focus.trim().length > 3 ? 5 : 0;
+
+  // Win score (up to 2 wins = 6 pts)
+  const winScore = Math.min(wins.length, 2) * 3;
+
+  // Confidence score (reward for logging it)
+  const confScore = confidence > 0 ? Math.min(4, Math.round(confidence / 2.5)) : 0;
+
+  const raw = taskScore + habitScore + focusScore + winScore + confScore;
+  const pct = Math.round((raw / MAX_TOTAL) * 100);
+
+  // Breakdown for display
+  const breakdown = [
+    { label: "Work Tasks", earned: Object.values(WORK_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: WORK_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1c3d2e" },
+    { label: "Personal Tasks", earned: Object.values(PERSONAL_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: PERSONAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#7c3d00" },
+    { label: "Financial Tasks", earned: Object.values(FINANCIAL_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: FINANCIAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1e3a5f" },
+    { label: "Habits", earned: habitScore, max: MAX_HABIT_SCORE, color: "#065f46" },
+    { label: "Focus Set", earned: focusScore, max: MAX_FOCUS_SCORE, color: "#c9a96e" },
+    { label: "Wins Logged", earned: winScore, max: MAX_WIN_SCORE, color: "#7c3d00" },
+  ];
+
+  // Performance tier
+  const tier =
+    pct >= 90 ? { label: "ELITE", color: "#fbbf24", bg: "#1c1400" } :
+    pct >= 75 ? { label: "STRONG", color: "#22c55e", bg: "#052e16" } :
+    pct >= 60 ? { label: "SOLID", color: "#3b82f6", bg: "#0f172a" } :
+    pct >= 45 ? { label: "BUILDING", color: "#f97316", bg: "#1c0a00" } :
+    pct >= 25 ? { label: "WARMING UP", color: "#a78bfa", bg: "#1e0050" } :
+                { label: "GET MOVING", color: "#f43f5e", bg: "#1c000a" };
+
+  return { pct, raw, max: MAX_TOTAL, breakdown, tier, taskScore, habitScore };
+}
+
 const HABITS_DEFAULT = [
   { id: 1, name: "Gym", icon: "🏋️", streak: 0, done: false },
   { id: 2, name: "Sleep on time", icon: "😴", streak: 0, done: false },
@@ -153,6 +212,17 @@ export default function App() {
   const [checkinNote, setCheckinNote] = useState("");
 
   // ── AI Chat ──
+  // ── Daily Coach state ──
+  const [coachMessage, setCoachMessage] = useState("");
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachLastUpdated, setCoachLastUpdated] = useState(null);
+  const [coachExpanded, setCoachExpanded] = useState(true);
+
+  // ── Daily Briefing state ──
+  const [briefing, setBriefing] = useState(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingExpanded, setBriefingExpanded] = useState(true);
+
   const [chatMessages, setChatMessages] = useState([
     { role: "assistant", content: "Hey Liam 👋 I'm your AI coach. Tell me what's on your mind — work stress, a decision you're avoiding, or just what you need to focus on today. I'll give you a direct, honest response." }
   ]);
@@ -179,11 +249,20 @@ export default function App() {
   // ─── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchTgTodos();
+    fetchBriefing();
   }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  // Auto-generate coaching when done/habits/confidence changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      generateCoachMessage();
+    }, 1500); // Wait 1.5s after last change
+    return () => clearTimeout(timer);
+  }, [done, habits, confidence, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
   const showToast = (msg) => {
@@ -268,6 +347,91 @@ export default function App() {
     showToast(`Confidence: ${confidence}/10 logged`);
   };
 
+  const fetchBriefing = async (force = false) => {
+    setBriefingLoading(true);
+    try {
+      const r = await fetch('/api/briefing' + (force ? '?force=true' : ''));
+      if (r.ok) {
+        const d = await r.json();
+        setBriefing(d.briefing);
+      }
+    } catch {}
+    setBriefingLoading(false);
+  };
+
+  const completeBriefingChallenge = async (category) => {
+    try {
+      await fetch('/api/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category })
+      });
+      setBriefing(prev => prev ? {
+        ...prev,
+        challengesCompleted: { ...(prev.challengesCompleted || {}), [category]: true }
+      } : prev);
+      showToast(category.charAt(0).toUpperCase() + category.slice(1) + " challenge complete! +" + (category === 'work' ? 20 : 15) + " pts");
+    } catch {}
+  };
+
+  const generateCoachMessage = async () => {
+    setCoachLoading(true);
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 9 ? "morning" : hour < 13 ? "mid-morning" : hour < 17 ? "afternoon" : hour < 20 ? "evening" : "night";
+
+    // Build honest progress snapshot
+    const totalWork = WORK_TASKS.length;
+    const totalPersonal = PERSONAL_TASKS.length;
+    const totalFinancial = FINANCIAL_TASKS.length;
+    const doneWork = WORK_TASKS.filter(t => done[t.id]).length;
+    const donePersonal = PERSONAL_TASKS.filter(t => done[t.id]).length;
+    const doneFinancial = FINANCIAL_TASKS.filter(t => done[t.id]).length;
+    const totalDone = doneWork + donePersonal + doneFinancial;
+    const totalTasks = totalWork + totalPersonal + totalFinancial;
+    const habitsDoneCount = habits.filter(h => h.done).length;
+    const completedHabitNames = habits.filter(h => h.done).map(h => h.name).join(", ");
+    const missedHabitNames = habits.filter(h => !h.done).map(h => h.name).join(", ");
+    const todayFocus = focus || "not set";
+    const recentWin = wins[0]?.text || "none logged today";
+    const confScore = confidence;
+
+    const currentScore = calcDailyScore(done, habits, focus, wins, confidence);
+    const progress = [
+      "You are Liam's personal life coach. It's " + timeOfDay + " on " + new Date().toLocaleDateString("en-US",{weekday:"long"}) + ".",
+      "",
+      "LIAM'S DAILY SCORE: " + currentScore.pct + "/100 (" + currentScore.tier.label + ")",
+      "Points earned: " + currentScore.raw + " of " + currentScore.max + " possible",
+      "",
+      "Breakdown:",
+      "- Tasks completed: " + totalDone + "/" + totalTasks + " (" + doneWork + "/" + totalWork + " work, " + donePersonal + "/" + totalPersonal + " personal, " + doneFinancial + "/" + totalFinancial + " financial)",
+      "- Habits done today: " + habitsDoneCount + "/" + habits.length + (completedHabitNames ? " (" + completedHabitNames + ")" : ""),
+      missedHabitNames ? "- Habits not done: " + missedHabitNames : "",
+      "- Today's focus task: " + todayFocus,
+      "- Confidence today: " + confScore + "/10",
+      "- Most recent win: " + recentWin,
+      "",
+      "Write a 3-4 sentence coaching message for a former athlete who needs direct feedback on his score and performance. Reference the actual score number and tier. If score is rising, acknowledge the momentum and push for more. If score is low or stalled, be direct — tell him exactly which category will move the score most right now and what action to take. End with a challenge or specific target. No fluff. He responds to athletic performance framing."
+    ].filter(Boolean).join("\n");
+    const prompt = progress;
+
+    try {
+      const res = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: prompt }],
+          system: "You are a direct, honest, warm life coach. Respond in 3-4 sentences maximum. No generic motivation — speak to this person's specific situation."
+        })
+      });
+      const data = await res.json();
+      setCoachMessage(data.reply || "");
+      setCoachLastUpdated(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+    } catch {
+      setCoachMessage("Complete one task right now. Don't think about the list — just pick the first incomplete item and start it.");
+    }
+    setCoachLoading(false);
+  };
+
   const sendChat = useCallback(async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = { role: "user", content: chatInput.trim() };
@@ -292,6 +456,7 @@ export default function App() {
 
   // ─── Computed ──────────────────────────────────────────────────────────────
   const tasks = ALL_TASKS[tab] || [];
+  const score = calcDailyScore(done, habits, focus, wins, confidence);
   const doneCount = tasks.filter(t => done[t.id]).length;
   const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
   const habitsDone = habits.filter(h => h.done).length;
@@ -349,6 +514,248 @@ export default function App() {
               <button className="btn btn-primary" onClick={saveFocus} style={{ whiteSpace: "nowrap" }}>Save</button>
             </div>
             {focus && <p style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: "#1c3d2e" }}>→ {focus}</p>}
+          </div>
+        </div>
+
+        {/* Daily Briefing Panel */}
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div
+            style={{ background: "linear-gradient(135deg,#1a2f4a,#0f1e35)", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+            onClick={() => setBriefingExpanded(p => !p)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>📋</span>
+              <div>
+                <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#93c5fd", textTransform: "uppercase" }}>Daily Briefing</div>
+                <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 16, fontWeight: 700, color: "#fff" }}>
+                  {briefing ? briefing.dayOfWeek + " — 3 Challenges" : "Loading today's briefing..."}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {briefing && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd", fontFamily: "'Nunito Sans',sans-serif" }}>
+                  Target: {briefing.targetScore}/100
+                </span>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); fetchBriefing(true); }}
+                style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "5px 10px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif" }}
+              >
+                {briefingLoading ? "..." : "↺"}
+              </button>
+              <span style={{ color: "#93c5fd", fontSize: 14 }}>{briefingExpanded ? "▲" : "▼"}</span>
+            </div>
+          </div>
+
+          {briefingExpanded && (
+            <div style={{ padding: "18px 20px" }}>
+              {briefingLoading && !briefing ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0" }}>
+                  <div className="spinner" style={{ borderTopColor: "#1e3a5f", borderColor: "#ede8e0" }} />
+                  <span style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>Generating today's challenges...</span>
+                </div>
+              ) : briefing ? (
+                <>
+                  {/* Coach note */}
+                  <div style={{ background: "#f0f7ff", borderRadius: 10, padding: "12px 16px", borderLeft: "4px solid #1e3a5f", marginBottom: 16 }}>
+                    <p style={{ fontSize: 13, lineHeight: 1.7, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
+                      {briefing.coachNote}
+                    </p>
+                  </div>
+
+                  {/* Three challenges */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      { key: "work", icon: "💼", label: "WORK", color: "#1c3d2e", bg: "#f0fdf4", pts: briefing.work?.points, challenge: briefing.work?.challenge, why: briefing.work?.why },
+                      { key: "personal", icon: "🏠", label: "PERSONAL", color: "#7c3d00", bg: "#fff7ed", pts: briefing.personal?.points, challenge: briefing.personal?.challenge, why: briefing.personal?.why },
+                      { key: "financial", icon: "📈", label: "FINANCIAL", color: "#1e3a5f", bg: "#eff6ff", pts: briefing.financial?.points, challenge: briefing.financial?.challenge, why: briefing.financial?.why },
+                    ].map(item => {
+                      const isDone = briefing.challengesCompleted?.[item.key];
+                      return (
+                        <div key={item.key} style={{ background: isDone ? item.bg : "#fafaf9", borderRadius: 12, padding: "14px 16px", border: "1.5px solid " + (isDone ? item.color : "#ede8e0"), opacity: isDone ? 1 : 0.95, transition: "all .2s" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                                <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: item.color, textTransform: "uppercase" }}>{item.label}</span>
+                                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: item.color, background: item.bg, padding: "2px 6px", borderRadius: 4 }}>+{item.pts} pts</span>
+                                {isDone && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✓ DONE</span>}
+                              </div>
+                              <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 14, fontWeight: 600, color: isDone ? "#6b7280" : "#18181b", lineHeight: 1.5, textDecoration: isDone ? "line-through" : "none" }}>
+                                {item.challenge}
+                              </p>
+                              {item.why && !isDone && (
+                                <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 12, color: "#71717a", marginTop: 4, fontStyle: "italic" }}>
+                                  → {item.why}
+                                </p>
+                              )}
+                            </div>
+                            {!isDone && (
+                              <button
+                                onClick={() => completeBriefingChallenge(item.key)}
+                                style={{ background: item.color, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif", whiteSpace: "nowrap", flexShrink: 0 }}
+                              >
+                                Mark Done
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Progress on challenges */}
+                  {briefing.challengesCompleted && (
+                    <div style={{ marginTop: 14, padding: "10px 14px", background: "#f7f4ef", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 600, color: "#52525b" }}>
+                        {Object.values(briefing.challengesCompleted).filter(Boolean).length}/3 challenges complete
+                      </span>
+                      <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 12, color: "#1c3d2e", fontWeight: 700 }}>
+                        {(briefing.challengesCompleted.work ? briefing.work.points : 0) +
+                         (briefing.challengesCompleted.personal ? briefing.personal.points : 0) +
+                         (briefing.challengesCompleted.financial ? briefing.financial.points : 0)} challenge pts earned
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: "center", padding: "16px 0" }}>
+                  <p style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", marginBottom: 12 }}>No briefing loaded yet.</p>
+                  <button className="btn btn-primary" onClick={() => fetchBriefing()} style={{ fontSize: 13 }}>Generate Today's Briefing</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Daily Score + Coach Panel */}
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "2px solid " + score.tier.color }}>
+
+          {/* Score Header */}
+          <div style={{ background: score.tier.bg, padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: score.tier.color, textTransform: "uppercase", marginBottom: 4 }}>🏆 Daily Performance Score</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 52, fontWeight: 900, color: score.tier.color, lineHeight: 1 }}>{score.pct}</span>
+                <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 20, fontWeight: 700, color: score.tier.color, opacity: 0.6 }}>/100</span>
+              </div>
+              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 700, color: score.tier.color, marginTop: 2, letterSpacing: 2 }}>{score.tier.label}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 11, color: score.tier.color, opacity: 0.7, marginBottom: 6 }}>{score.raw} of {score.max} pts earned</div>
+              {/* Circular progress */}
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6"/>
+                <circle cx="36" cy="36" r="30" fill="none" stroke={score.tier.color} strokeWidth="6"
+                  strokeDasharray={2 * Math.PI * 30}
+                  strokeDashoffset={2 * Math.PI * 30 * (1 - score.pct / 100)}
+                  strokeLinecap="round"
+                  transform="rotate(-90 36 36)"
+                  style={{ transition: "stroke-dashoffset 0.8s ease" }}
+                />
+                <text x="36" y="40" textAnchor="middle" fill={score.tier.color} fontSize="14" fontWeight="900" fontFamily="sans-serif">{score.pct}%</text>
+              </svg>
+            </div>
+          </div>
+
+          {/* Score Breakdown */}
+          <div style={{ padding: "14px 22px", background: "#fff", borderBottom: "1px solid #f0ebe3" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+              {score.breakdown.map(item => {
+                const itemPct = item.max > 0 ? Math.round((item.earned / item.max) * 100) : 0;
+                return (
+                  <div key={item.label}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#71717a", fontFamily: "'Nunito Sans',sans-serif", textTransform: "uppercase", letterSpacing: 0.8 }}>{item.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono',monospace" }}>{item.earned}/{item.max}</span>
+                    </div>
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{ width: itemPct + "%", background: item.color, transition: "width 0.5s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tier ladder */}
+            <div style={{ display: "flex", gap: 4, marginTop: 14, alignItems: "center" }}>
+              <span style={{ fontSize: 10, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", marginRight: 4, fontWeight: 700 }}>TARGET:</span>
+              {[
+                { min: 0, label: "GET MOVING", color: "#f43f5e" },
+                { min: 25, label: "WARMING UP", color: "#a78bfa" },
+                { min: 45, label: "BUILDING", color: "#f97316" },
+                { min: 60, label: "SOLID", color: "#3b82f6" },
+                { min: 75, label: "STRONG", color: "#22c55e" },
+                { min: 90, label: "ELITE", color: "#fbbf24" },
+              ].map(tier => (
+                <div key={tier.label} style={{
+                  padding: "3px 8px", borderRadius: 20, fontSize: 9, fontWeight: 700,
+                  fontFamily: "'Nunito Sans',sans-serif", letterSpacing: 0.8,
+                  background: score.pct >= tier.min && (
+                    (tier.min === 0 && score.pct < 25) ||
+                    (tier.min === 25 && score.pct < 45) ||
+                    (tier.min === 45 && score.pct < 60) ||
+                    (tier.min === 60 && score.pct < 75) ||
+                    (tier.min === 75 && score.pct < 90) ||
+                    tier.min === 90
+                  ) ? tier.color : "#f0ebe3",
+                  color: score.pct >= tier.min && (
+                    (tier.min === 0 && score.pct < 25) ||
+                    (tier.min === 25 && score.pct < 45) ||
+                    (tier.min === 45 && score.pct < 60) ||
+                    (tier.min === 60 && score.pct < 75) ||
+                    (tier.min === 75 && score.pct < 90) ||
+                    tier.min === 90
+                  ) ? "#fff" : "#a1a1aa",
+                }}>{tier.label}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Coach Message */}
+          <div style={{ padding: "16px 22px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "#71717a", textTransform: "uppercase" }}>🧠 Coach Feedback</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {coachLastUpdated && <span style={{ fontSize: 10, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>{coachLastUpdated}</span>}
+                <button
+                  onClick={generateCoachMessage}
+                  style={{ background: "#f7f4ef", border: "1px solid #ede8e0", borderRadius: 6, padding: "4px 10px", color: "#52525b", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif" }}
+                >
+                  {coachLoading ? "..." : "↺ Refresh"}
+                </button>
+              </div>
+            </div>
+
+            {coachLoading ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                <div className="spinner" style={{ borderTopColor: "#1c3d2e", borderColor: "#ede8e0" }} />
+                <span style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>Analyzing your score...</span>
+              </div>
+            ) : coachMessage ? (
+              <div style={{ background: "#f7f4ef", borderRadius: 10, padding: "14px 16px", borderLeft: "4px solid " + score.tier.color }}>
+                <p style={{ fontSize: 14, lineHeight: 1.75, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
+                  {coachMessage}
+                </p>
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", padding: "8px 0" }}>Complete a task to get your first coaching message.</p>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              {[
+                { label: "💬 Talk to coach", action: () => { setChatInput("Give me specific coaching on my score and how to improve it today"); setTimeout(() => document.querySelector("input[placeholder*='Type anything']")?.focus(), 100); } },
+                { label: "🏆 Log a win", action: () => setTimeout(() => document.querySelector("input[placeholder*='did you do right']")?.focus(), 100) },
+                { label: "↺ New message", action: generateCoachMessage },
+              ].map(btn => (
+                <button key={btn.label} onClick={btn.action} style={{
+                  background: "#fff", border: "1.5px solid #ede8e0", borderRadius: 20,
+                  padding: "6px 14px", fontSize: 12, fontWeight: 600, color: "#52525b",
+                  cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif"
+                }}>{btn.label}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -727,15 +1134,62 @@ export default function App() {
           </a>
         </div>
 
-        {/* Daily Schedule */}
+        {/* Calendar Integration */}
         <div className="card" style={{ padding: 16 }}>
-          <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>📅 MORNING ROUTINE</div>
+          <div className="label" style={{ color: "#1c3d2e", marginBottom: 6 }}>📅 CALENDAR SYNC</div>
+          <h3 className="heading" style={{ fontSize: 16, color: "#18181b", marginBottom: 8 }}>Add All Events to Calendar</h3>
+          <p style={{ fontSize: 12, color: "#71717a", lineHeight: 1.6, marginBottom: 14 }}>
+            Downloads a .ics file with every recurring event — morning routine, daily touchpoints, and weekly reviews. Alerts built in.
+          </p>
+
+          {/* What's included */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+            {[
+              { time: "5:00am", label: "🏋️ Gym", sub: "Daily · 15min alert", color: "#1c3d2e" },
+              { time: "6:25am", label: "📊 Dashboard Check-In", sub: "Daily · fires at 6:25", color: "#1e3a5f" },
+              { time: "8:00am", label: "☀️ Morning Briefing", sub: "Daily · 10min alert", color: "#c9a96e" },
+              { time: "1:00pm", label: "⚡ Midday Pulse", sub: "Daily · 5min alert", color: "#d97706" },
+              { time: "8:00pm", label: "🌙 Evening Review", sub: "Daily · 10min alert", color: "#7c3d00" },
+              { time: "10:00pm", label: "😴 Pre-Sleep", sub: "Daily · 15min alert", color: "#4a1d96" },
+            ].map(item => (
+              <div key={item.time} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #fafaf9" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: item.color, minWidth: 46 }}>{item.time}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#18181b" }}>{item.label}</div>
+                    <div style={{ fontSize: 10, color: "#a1a1aa" }}>{item.sub}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 4, fontStyle: "italic" }}>+ Weekly financial review, family planning, personal dev</div>
+          </div>
+
+          <a
+            href="/api/calendar"
+            download="liam-accountability.ics"
+            style={{
+              display: "block", background: "#1c3d2e", color: "#fff", borderRadius: 10,
+              padding: "11px 0", textAlign: "center", fontFamily: "'Nunito Sans',sans-serif",
+              fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 10
+            }}
+          >
+            ⬇ Download Calendar File (.ics)
+          </a>
+          <p style={{ fontSize: 11, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+            Opens in Apple Calendar, Google Calendar, or Outlook. Tap once — all events sync permanently.
+          </p>
+        </div>
+
+        {/* Morning Routine */}
+        <div className="card" style={{ padding: 16 }}>
+          <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>⏰ MORNING ROUTINE</div>
           {[
             ["4:45am", "Wake up · water · no phone"],
-            ["5:00am", "Gym"],
+            ["5:00am", "🏋️ Gym"],
             ["6:00am", "Shower → leader mode"],
             ["6:15am", "Protein breakfast · zero scroll"],
-            ["6:25am", "Dashboard · set #1 task"],
+            ["6:25am", "📊 Dashboard · set #1 task"],
             ["6:35am", "Family time (15 min)"],
             ["6:50am", "Pack · mental run top 3"],
             ["7:00am", "Out the door with a plan"],

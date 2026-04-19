@@ -97,6 +97,24 @@ export default async function handler(req, res) {
         body: JSON.stringify({ callback_query_id: callback_query.id })
       });
 
+      if (data.startsWith('challenge_')) {
+        const category = data.replace('challenge_', '');
+        const base = process.env.DASHBOARD_URL || 'https://liam-accountability-bot.vercel.app';
+        try {
+          await fetch(`${base}/api/briefing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category })
+          });
+          const categoryMap = { work: { emoji: '💼', pts: 20 }, personal: { emoji: '🏠', pts: 15 }, financial: { emoji: '📈', pts: 15 } };
+          const c = categoryMap[category] || { emoji: '✅', pts: 15 };
+          await sendTelegram(chatId, c.emoji + ' *' + category.charAt(0).toUpperCase() + category.slice(1) + ' challenge complete!*\n\n+' + c.pts + ' points added to your daily score. Keep going — check your dashboard for your current score.');
+        } catch {
+          await sendTelegram(chatId, '✅ Logged! Check your dashboard for your updated score.');
+        }
+        return res.status(200).json({ ok: true });
+      }
+
       if (data.startsWith('done_')) {
         const id = parseInt(data.replace('done_',''));
         const base = process.env.DASHBOARD_URL || 'https://liam-accountability-bot.vercel.app';
@@ -125,7 +143,7 @@ export default async function handler(req, res) {
     // ── /start ────────────────────────────────────────────────────────────────
     if (text === '/start') {
       await sendTelegram(chatId,
-        `Hey ${firstName} 👋 I'm your personal accountability coach.\n\n*Daily check-ins (ET):*\n🏋️ 5am · ☀️ 8am · ⚡ 1pm · 🌙 8pm · 😴 10pm\n\n*Commands:* /todos · /dashboard · /status\n\n💡 *Add tasks — any format works:*\n_"add pressure wash driveway to my home list"_\n_"need for house: front flowerbed, mulch beds, clean windows"_\n_"remind me to call the bank"_\n\nYou can send a whole list at once. What's on your mind?`
+        `Hey ${firstName} 👋 I'm your personal accountability coach.\n\n*Daily check-ins (ET):*\n🏋️ 5am · ☀️ 8am · ⚡ 1pm · 🌙 8pm · 😴 10pm\n\n*Commands:* /todos · /dashboard · /calendar · /status\n\n💡 *Add tasks — any format works:*\n_"add pressure wash driveway to my home list"_\n_"need for house: front flowerbed, mulch beds, clean windows"_\n_"remind me to call the bank"_\n\nYou can send a whole list at once. What's on your mind?`
       );
       return res.status(200).json({ ok:true });
     }
@@ -155,6 +173,15 @@ export default async function handler(req, res) {
         await sendTelegram(chatId, "Couldn't load tasks. Check your Upstash connection in Vercel env vars.");
       }
       return res.status(200).json({ ok:true });
+    }
+
+    // ── /calendar ────────────────────────────────────────────────────────────
+    if (text === '/calendar') {
+      const base = process.env.DASHBOARD_URL || 'https://liam-accountability-bot.vercel.app';
+      await sendTelegram(chatId,
+        `📅 *Sync Your Calendar*\n\nDownload your accountability calendar file:\n[⬇ Download liam-accountability.ics](${base}/api/calendar)\n\n*What's included:*\n🏋️ Gym — 5am daily (15min alert)\n☀️ Morning Briefing — 8am daily (10min alert)\n⚡ Midday Pulse — 1pm daily (5min alert)\n🌙 Evening Review — 8pm daily (10min alert)\n😴 Pre-Sleep — 10pm daily (15min alert)\n+ Morning routine blocks with individual alerts\n+ Weekly financial review, family planning, personal dev\n\nOpen the file on your phone — it adds everything to Apple Calendar or Google Calendar in one tap.`
+      );
+      return res.status(200).json({ ok: true });
     }
 
     // ── /dashboard ────────────────────────────────────────────────────────────
