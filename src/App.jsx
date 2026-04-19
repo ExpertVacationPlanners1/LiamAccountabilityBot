@@ -9,40 +9,80 @@ document.head.appendChild(FONT_LINK);
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#f7f4ef;font-family:'Nunito Sans',sans-serif;min-height:100vh}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{background:#f7f4ef;font-family:'Nunito Sans',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
   ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d0c9be;border-radius:2px}
-  .app{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr 340px;gap:16px}
-  @media(max-width:768px){.app{grid-template-columns:1fr;padding:12px}}
-  .card{background:#fff;border-radius:16px;border:1px solid #ede8e0;overflow:hidden}
+
+  /* Layout */
+  .app{max-width:1200px;margin:0 auto;padding:clamp(10px,3vw,20px);display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+  @media(max-width:900px){.app{grid-template-columns:1fr}}
+  @media(max-width:480px){.app{padding:10px;gap:10px}}
+
+  /* Cards */
+  .card{background:#fff;border-radius:14px;border:1px solid #ede8e0;overflow:hidden}
+
+  /* Tabs */
   .tabs{display:flex;gap:4px;padding:4px;background:#f7f4ef;border-radius:10px}
-  .tab{flex:1;padding:8px 12px;border:none;border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#71717a;letter-spacing:.5px;transition:all .15s}
+  .tab{flex:1;padding:7px 8px;border:none;border-radius:7px;font-family:'Nunito Sans',sans-serif;font-size:clamp(11px,2.5vw,13px);font-weight:700;cursor:pointer;background:transparent;color:#71717a;letter-spacing:.3px;transition:all .15s;white-space:nowrap}
   .tab.active{background:#fff;color:#18181b;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-  .btn{padding:10px 18px;border-radius:10px;border:none;font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+
+  /* Buttons */
+  .btn{padding:10px 16px;border-radius:10px;border:none;font-family:'Nunito Sans',sans-serif;font-size:clamp(12px,2.5vw,13px);font-weight:700;cursor:pointer;transition:all .15s}
   .btn-primary{background:#1c3d2e;color:#fff}.btn-primary:hover{background:#163325}
-  .btn-ghost{background:transparent;border:1.5px solid #d0c9be;color:#52525b}.btn-ghost:hover{border-color:#1c3d2e;color:#1c3d2e}
-  input,textarea{font-family:'Nunito Sans',sans-serif;font-size:14px;width:100%;border:1.5px solid #ede8e0;border-radius:10px;padding:10px 14px;outline:none;background:#fff;color:#18181b;transition:border .15s}
+  .btn-ghost{background:transparent;border:1.5px solid #d0c9be;color:#52525b}
+
+  /* Inputs */
+  input,textarea{font-family:'Nunito Sans',sans-serif;font-size:clamp(13px,3.5vw,15px);width:100%;border:1.5px solid #ede8e0;border-radius:10px;padding:10px 14px;outline:none;background:#fff;color:#18181b;transition:border .15s;-webkit-appearance:none}
   input:focus,textarea:focus{border-color:#1c3d2e}
-  .chat-bubble-user{background:#1c3d2e;color:#fff;padding:12px 16px;border-radius:18px 18px 4px 18px;max-width:80%;align-self:flex-end;font-size:14px;line-height:1.5}
-  .chat-bubble-ai{background:#f7f4ef;color:#18181b;padding:12px 16px;border-radius:18px 18px 18px 4px;max-width:88%;align-self:flex-start;font-size:14px;line-height:1.6;border:1px solid #ede8e0}
-  .habit-ring{width:48px;height:48px;border-radius:50%;border:3px solid #ede8e0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:all .2s;background:#fff}
+
+  /* Chat bubbles */
+  .chat-bubble-user{background:#1c3d2e;color:#fff;padding:10px 14px;border-radius:16px 16px 4px 16px;max-width:82%;align-self:flex-end;font-size:clamp(13px,3.2vw,14px);line-height:1.5}
+  .chat-bubble-ai{background:#f7f4ef;color:#18181b;padding:10px 14px;border-radius:16px 16px 16px 4px;max-width:90%;align-self:flex-start;font-size:clamp(13px,3.2vw,14px);line-height:1.6;border:1px solid #ede8e0}
+
+  /* Habits */
+  .habit-ring{width:44px;height:44px;border-radius:50%;border:3px solid #ede8e0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all .2s;background:#fff;flex-shrink:0}
   .habit-ring.done{border-color:#1c3d2e;background:#f0fdf4}
+
+  /* Progress */
   .progress-bar{height:6px;background:#f0ebe3;border-radius:3px;overflow:hidden}
   .progress-fill{height:100%;border-radius:3px;transition:width .4s}
-  .priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+
+  /* Task rows */
+  .priority-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:6px}
   .task-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #fafaf9;cursor:pointer}
   .task-row:last-child{border-bottom:none}
   .check-circle{width:22px;height:22px;border-radius:50%;border:2px solid #d0c9be;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .2s;background:#fff}
   .check-circle.done{background:#1c3d2e;border-color:#1c3d2e;color:#fff}
-  .label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
+
+  /* Type */
+  .label{font-size:clamp(9px,2vw,10px);font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
   .heading{font-family:'Fraunces',Georgia,serif;font-weight:700}
-  .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1c3d2e;color:#fff;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;animation:fadeup .3s ease}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1.5px solid}
+
+  /* Toast */
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c3d2e;color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;animation:fadeup .3s ease;white-space:nowrap;max-width:90vw;text-align:center}
   @keyframes fadeup{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+
+  /* Spinner */
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .sidebar{display:flex;flex-direction:column;gap:14px}
-  .tg-todo-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f0ea}
+
+  /* Sidebar */
+  .sidebar{display:flex;flex-direction:column;gap:12px}
+
+  /* Telegram todos */
+  .tg-todo-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f5f0ea}
   .tg-todo-item:last-child{border-bottom:none}
+
+  /* Mobile overrides */
+  @media(max-width:480px){
+    .card{border-radius:12px}
+    .habit-ring{width:40px;height:40px;font-size:16px}
+    .check-circle{width:20px;height:20px}
+    h1.heading{font-size:22px !important}
+    h2.heading{font-size:17px !important}
+    h3.heading{font-size:15px !important}
+  }
 `;
 const styleEl = document.createElement("style");
 styleEl.textContent = CSS;
@@ -479,11 +519,11 @@ export default function App() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* Header */}
-        <div className="card" style={{ padding: "18px 22px" }}>
+        <div className="card" style={{ padding: "clamp(12px,3vw,18px) clamp(14px,4vw,22px)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div>
               <div className="label" style={{ color: "#1c3d2e", marginBottom: 4 }}>🎯 Life Command Center</div>
-              <h1 className="heading" style={{ fontSize: 26, color: "#18181b", lineHeight: 1.2 }}>Accountability System</h1>
+              <h1 className="heading" style={{ fontSize: "clamp(20px,5vw,26px)", color: "#18181b", lineHeight: 1.2 }}>Accountability System</h1>
               <p style={{ fontSize: 12, color: "#71717a", marginTop: 4 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -493,7 +533,7 @@ export default function App() {
                 const colors = { work: "#1c3d2e", personal: "#7c3d00", financial: "#1e3a5f" };
                 return (
                   <div key={c} style={{ textAlign: "center", background: "#f7f4ef", padding: "8px 14px", borderRadius: 10 }}>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: colors[c] }}>{d}/{t.length}</div>
+                    <div style={{ fontSize: "clamp(14px,3.8vw,18px)", fontWeight: 900, color: colors[c] }}>{d}/{t.length}</div>
                     <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>{c}</div>
                   </div>
                 );
@@ -514,7 +554,7 @@ export default function App() {
               />
               <button className="btn btn-primary" onClick={saveFocus} style={{ whiteSpace: "nowrap" }}>Save</button>
             </div>
-            {focus && <p style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: "#1c3d2e" }}>→ {focus}</p>}
+            {focus && <p style={{ marginTop: 8, fontSize: "clamp(13px,2.8vw,14px)", fontWeight: 600, color: "#1c3d2e" }}>→ {focus}</p>}
           </div>
         </div>
 
@@ -528,7 +568,7 @@ export default function App() {
               <span style={{ fontSize: 20 }}>📋</span>
               <div>
                 <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#93c5fd", textTransform: "uppercase" }}>Daily Briefing</div>
-                <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 16, fontWeight: 700, color: "#fff" }}>
+                <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: "clamp(13px,3.2vw,16px)", fontWeight: 700, color: "#fff" }}>
                   {briefing ? briefing.dayOfWeek + " — 3 Challenges" : "Loading today's briefing..."}
                 </div>
               </div>
@@ -545,7 +585,7 @@ export default function App() {
               >
                 {briefingLoading ? "..." : "↺"}
               </button>
-              <span style={{ color: "#93c5fd", fontSize: 14 }}>{briefingExpanded ? "▲" : "▼"}</span>
+              <span style={{ color: "#93c5fd", fontSize: "clamp(13px,2.8vw,14px)" }}>{briefingExpanded ? "▲" : "▼"}</span>
             </div>
           </div>
 
@@ -578,12 +618,12 @@ export default function App() {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                                <span style={{ fontSize: "clamp(13px,2.8vw,14px)" }}>{item.icon}</span>
                                 <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: item.color, textTransform: "uppercase" }}>{item.label}</span>
                                 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: item.color, background: item.bg, padding: "2px 6px", borderRadius: 4 }}>+{item.pts} pts</span>
                                 {isDone && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✓ DONE</span>}
                               </div>
-                              <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 14, fontWeight: 600, color: isDone ? "#6b7280" : "#18181b", lineHeight: 1.5, textDecoration: isDone ? "line-through" : "none" }}>
+                              <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: "clamp(13px,2.8vw,14px)", fontWeight: 600, color: isDone ? "#6b7280" : "#18181b", lineHeight: 1.5, textDecoration: isDone ? "line-through" : "none" }}>
                                 {item.challenge}
                               </p>
                               {item.why && !isDone && (
@@ -634,11 +674,11 @@ export default function App() {
         <div className="card" style={{ padding: 0, overflow: "hidden", border: "2px solid " + score.tier.color }}>
 
           {/* Score Header */}
-          <div style={{ background: score.tier.bg, padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ background: score.tier.bg, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: score.tier.color, textTransform: "uppercase", marginBottom: 4 }}>🏆 Daily Performance Score</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 52, fontWeight: 900, color: score.tier.color, lineHeight: 1 }}>{score.pct}</span>
+                <span style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: "clamp(40px,10vw,56px)", fontWeight: 900, color: score.tier.color, lineHeight: 1 }}>{score.pct}</span>
                 <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 20, fontWeight: 700, color: score.tier.color, opacity: 0.6 }}>/100</span>
               </div>
               <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 700, color: score.tier.color, marginTop: 2, letterSpacing: 2 }}>{score.tier.label}</div>
@@ -661,8 +701,8 @@ export default function App() {
           </div>
 
           {/* Score Breakdown */}
-          <div style={{ padding: "14px 22px", background: "#fff", borderBottom: "1px solid #f0ebe3" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <div style={{ padding: "clamp(10px,2.5vw,14px) clamp(14px,4vw,22px)", background: "#fff", borderBottom: "1px solid #f0ebe3" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
               {score.breakdown.map(item => {
                 const itemPct = item.max > 0 ? Math.round((item.earned / item.max) * 100) : 0;
                 return (
@@ -715,7 +755,7 @@ export default function App() {
           </div>
 
           {/* Coach Message */}
-          <div style={{ padding: "16px 22px" }}>
+          <div style={{ padding: "clamp(12px,3vw,16px) clamp(14px,4vw,22px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "#71717a", textTransform: "uppercase" }}>🧠 Coach Feedback</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -736,7 +776,7 @@ export default function App() {
               </div>
             ) : coachMessage ? (
               <div style={{ background: "#f7f4ef", borderRadius: 10, padding: "14px 16px", borderLeft: "4px solid " + score.tier.color }}>
-                <p style={{ fontSize: 14, lineHeight: 1.75, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
+                <p style={{ fontSize: "clamp(13px,2.8vw,14px)", lineHeight: 1.75, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
                   {coachMessage}
                 </p>
               </div>
@@ -765,12 +805,12 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div>
               <div className="label" style={{ color: "#71717a", marginBottom: 3 }}>📋 GOAL TRACKER</div>
-              <h2 className="heading" style={{ fontSize: 19, color: "#18181b" }}>
+              <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b" }}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)} Goals
               </h2>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#1c3d2e" }}>{pct}%</div>
+              <div style={{ fontSize: "clamp(17px,4.5vw,22px)", fontWeight: 900, color: "#1c3d2e" }}>{pct}%</div>
               <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>complete</div>
             </div>
           </div>
@@ -794,7 +834,7 @@ export default function App() {
               </div>
               <div className="priority-dot" style={{ background: PRI_COLOR[task.priority] }} />
               <span style={{
-                flex: 1, fontSize: 14, lineHeight: 1.5, color: "#18181b",
+                flex: 1, fontSize: "clamp(13px,2.8vw,14px)", lineHeight: 1.5, color: "#18181b",
                 textDecoration: done[task.id] ? "line-through" : "none",
                 opacity: done[task.id] ? 0.5 : 1
               }}>
@@ -805,11 +845,11 @@ export default function App() {
         </div>
 
         {/* Habits + Confidence */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
           {/* Habits */}
           <div className="card" style={{ padding: 18 }}>
             <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>🔥 DAILY HABITS</div>
-            <h2 className="heading" style={{ fontSize: 17, color: "#18181b", marginBottom: 14 }}>
+            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 14 }}>
               {habitsDone}/{habits.length} done today
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -831,7 +871,7 @@ export default function App() {
           {/* Confidence */}
           <div className="card" style={{ padding: 18 }}>
             <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>💪 CONFIDENCE</div>
-            <h2 className="heading" style={{ fontSize: 17, color: "#18181b", marginBottom: 6 }}>How do you feel?</h2>
+            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 6 }}>How do you feel?</h2>
             <p style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 14 }}>Rate yourself honestly, not perfectly.</p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
@@ -856,11 +896,11 @@ export default function App() {
         </div>
 
         {/* Check-in + Win Log */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
           {/* Check-in */}
           <div className="card" style={{ padding: 18 }}>
             <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>📝 CHECK-IN LOG</div>
-            <h2 className="heading" style={{ fontSize: 17, color: "#18181b", marginBottom: 12 }}>Quick Note</h2>
+            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 12 }}>Quick Note</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               <textarea
                 value={checkinNote}
@@ -885,7 +925,7 @@ export default function App() {
           {/* Win Log */}
           <div className="card" style={{ padding: 18 }}>
             <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>🏆 WIN LOG</div>
-            <h2 className="heading" style={{ fontSize: 17, color: "#18181b", marginBottom: 12 }}>Log a Win</h2>
+            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 12 }}>Log a Win</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               <input
                 value={winInput}
@@ -898,7 +938,7 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 160, overflowY: "auto" }}>
               {wins.slice(0, 6).map(w => (
                 <div key={w.id} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: 14, marginTop: 1 }}>⭐</span>
+                  <span style={{ fontSize: "clamp(13px,2.8vw,14px)", marginTop: 1 }}>⭐</span>
                   <div>
                     <p style={{ fontSize: 13, color: "#18181b", lineHeight: 1.4 }}>{w.text}</p>
                     <p style={{ fontSize: 10, color: "#a1a1aa" }}>{w.date}</p>
@@ -913,8 +953,8 @@ export default function App() {
         {/* Financial Panel */}
         <div className="card" style={{ padding: 18 }}>
           <div className="label" style={{ color: "#1e3a5f", marginBottom: 6 }}>📈 FINANCIAL TRACKER</div>
-          <h2 className="heading" style={{ fontSize: 19, color: "#18181b", marginBottom: 16 }}>Budget Snapshot</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
+          <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b", marginBottom: 16 }}>Budget Snapshot</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
             {[
               { key: "income", label: "Monthly Income", placeholder: "e.g. 5000" },
               { key: "fixed", label: "Fixed Costs", placeholder: "rent, car, loans..." },
@@ -939,7 +979,7 @@ export default function App() {
                 { label: "Gap to Target", value: budgetGap.gap > 0 ? "-$" + budgetGap.gap.toLocaleString() : "✓ On track", color: budgetGap.gap > 0 ? "#dc2626" : "#16a34a" },
               ].map(s => (
                 <div key={s.label} style={{ padding: 12, background: "#f7f4ef", borderRadius: 10, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: "clamp(14px,3.8vw,18px)", fontWeight: 900, color: s.color }}>{s.value}</div>
                   <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>{s.label}</div>
                 </div>
               ))}
@@ -979,7 +1019,7 @@ export default function App() {
         {/* AI Coach Chat */}
         <div className="card" style={{ padding: 18 }}>
           <div className="label" style={{ color: "#1c3d2e", marginBottom: 6 }}>🤖 AI LIFE COACH</div>
-          <h2 className="heading" style={{ fontSize: 19, color: "#18181b", marginBottom: 4 }}>Talk to Your Coach</h2>
+          <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b", marginBottom: 4 }}>Talk to Your Coach</h2>
           <p style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 14 }}>Ask anything. Work stress, decisions, confidence, finances. Direct, honest coaching.</p>
 
           <div style={{ height: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14, padding: "4px 0" }}>
@@ -1045,7 +1085,7 @@ export default function App() {
         {/* Next Check-in */}
         <div className="card" style={{ padding: 16, background: "linear-gradient(135deg,#1c3d2e,#16332a)" }}>
           <div className="label" style={{ color: "#a8d4b0", marginBottom: 6 }}>⏱ NEXT CHECK-IN</div>
-          <h3 className="heading" style={{ fontSize: 18, color: "#fff", marginBottom: 4 }}>
+          <h3 className="heading" style={{ fontSize: "clamp(14px,3.8vw,18px)", color: "#fff", marginBottom: 4 }}>
             {(() => {
               const now = new Date();
               const h = now.getHours(), m = now.getMinutes();
@@ -1064,7 +1104,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
               <div className="label" style={{ color: "#0088cc", marginBottom: 3 }}>📱 TELEGRAM TASKS</div>
-              <h3 className="heading" style={{ fontSize: 16, color: "#18181b" }}>From Your Bot</h3>
+              <h3 className="heading" style={{ fontSize: "clamp(13px,3.2vw,16px)", color: "#18181b" }}>From Your Bot</h3>
             </div>
             <button
               onClick={fetchTgTodos}
@@ -1094,7 +1134,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => deleteTg(todo.id)}
-                  style={{ background: "none", border: "none", color: "#d0c9be", cursor: "pointer", fontSize: 18, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
+                  style={{ background: "none", border: "none", color: "#d0c9be", cursor: "pointer", fontSize: "clamp(14px,3.8vw,18px)", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
                 >×</button>
               </div>
             ))
@@ -1113,7 +1153,7 @@ export default function App() {
         {/* Live Coaching Panel */}
         <div className="card" style={{ padding: 16, background: "linear-gradient(135deg,#0088cc,#005fa3)" }}>
           <div className="label" style={{ color: "#a8d8f0", marginBottom: 6 }}>📱 LIVE COACHING</div>
-          <h3 className="heading" style={{ fontSize: 17, color: "#fff", marginBottom: 8 }}>Telegram Bot Active</h3>
+          <h3 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#fff", marginBottom: 8 }}>Telegram Bot Active</h3>
           <p style={{ fontSize: 12, color: "#cce8f7", lineHeight: 1.6, marginBottom: 12 }}>
             5 daily touchpoints push directly to your phone.
           </p>
@@ -1138,7 +1178,7 @@ export default function App() {
         {/* Calendar Integration */}
         <div className="card" style={{ padding: 16 }}>
           <div className="label" style={{ color: "#1c3d2e", marginBottom: 6 }}>📅 CALENDAR SYNC</div>
-          <h3 className="heading" style={{ fontSize: 16, color: "#18181b", marginBottom: 8 }}>Add All Events to Calendar</h3>
+          <h3 className="heading" style={{ fontSize: "clamp(13px,3.2vw,16px)", color: "#18181b", marginBottom: 8 }}>Add All Events to Calendar</h3>
           <p style={{ fontSize: 12, color: "#71717a", lineHeight: 1.6, marginBottom: 14 }}>
             Downloads a .ics file with every recurring event — morning routine, daily touchpoints, and weekly reviews. Alerts built in.
           </p>
