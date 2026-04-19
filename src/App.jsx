@@ -144,11 +144,12 @@ const MAX_WIN_SCORE = 6;      // 3 pts per win, up to 2 wins
 const MAX_CONFIDENCE_SCORE = 4; // up to 4 pts based on logging it
 const MAX_TOTAL = MAX_TASK_SCORE + MAX_HABIT_SCORE + MAX_FOCUS_SCORE + MAX_WIN_SCORE + MAX_CONFIDENCE_SCORE;
 
-function calcDailyScore(done, habits, focus, wins, confidence) {
-  // Task score
+function calcDailyScore(done, habits, focus, wins, confidence, isWeekend = false) {
+  // Task score — skip work tasks on weekends
   let taskScore = 0;
-  Object.values(ALL_TASKS).forEach(tasks =>
-    tasks.forEach(t => { if (done[t.id]) taskScore += TASK_POINTS[t.priority] || 5; })
+  const scoringCategories = isWeekend ? ["personal", "financial"] : ["work", "personal", "financial"];
+  scoringCategories.forEach(cat =>
+    ALL_TASKS[cat].forEach(t => { if (done[t.id]) taskScore += TASK_POINTS[t.priority] || 5; })
   );
 
   // Habit score
@@ -163,14 +164,20 @@ function calcDailyScore(done, habits, focus, wins, confidence) {
   // Confidence score (reward for logging it)
   const confScore = confidence > 0 ? Math.min(4, Math.round(confidence / 2.5)) : 0;
 
+  // Dynamic max based on day type
+  const dayMaxTask = isWeekend
+    ? [...ALL_TASKS.personal, ...ALL_TASKS.financial].reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0)
+    : MAX_TASK_SCORE;
+  const dayMax = dayMaxTask + MAX_HABIT_SCORE + MAX_FOCUS_SCORE + MAX_WIN_SCORE + MAX_CONFIDENCE_SCORE;
+
   const raw = taskScore + habitScore + focusScore + winScore + confScore;
-  const pct = Math.round((raw / MAX_TOTAL) * 100);
+  const pct = Math.round((raw / dayMax) * 100);
 
   // Breakdown for display
   const breakdown = [
-    { label: "Work Tasks", earned: Object.values(WORK_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: WORK_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1c3d2e" },
-    { label: "Personal Tasks", earned: Object.values(PERSONAL_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: PERSONAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#7c3d00" },
-    { label: "Financial Tasks", earned: Object.values(FINANCIAL_TASKS).filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: FINANCIAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1e3a5f" },
+    ...(!isWeekend ? [{ label: "Work Tasks", earned: WORK_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: WORK_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1c3d2e" }] : []),
+    { label: "Personal Tasks", earned: PERSONAL_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: PERSONAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#7c3d00" },
+    { label: "Financial Tasks", earned: FINANCIAL_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: FINANCIAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1e3a5f" },
     { label: "Habits", earned: habitScore, max: MAX_HABIT_SCORE, color: "#065f46" },
     { label: "Focus Set", earned: focusScore, max: MAX_FOCUS_SCORE, color: "#c9a96e" },
     { label: "Wins Logged", earned: winScore, max: MAX_WIN_SCORE, color: "#7c3d00" },
@@ -185,7 +192,7 @@ function calcDailyScore(done, habits, focus, wins, confidence) {
     pct >= 25 ? { label: "WARMING UP", color: "#a78bfa", bg: "#1e0050" } :
                 { label: "GET MOVING", color: "#f43f5e", bg: "#1c000a" };
 
-  return { pct, raw, max: MAX_TOTAL, breakdown, tier, taskScore, habitScore };
+  return { pct, raw, max: dayMax, breakdown, tier, taskScore, habitScore, isWeekend };
 }
 const CAT_COLOR = { work: "#1c3d2e", personal: "#7c3d00", financial: "#1e3a5f", home: "#5b4a00", family: "#6b21a8", health: "#065f46" };
 const CAT_EMOJI = { work: "💼", personal: "🏠", financial: "📈", home: "🏡", family: "👨‍👩‍👦", health: "💪" };
@@ -394,9 +401,32 @@ export default function App() {
       const r = await fetch('/api/briefing' + (force ? '?force=true' : ''));
       if (r.ok) {
         const d = await r.json();
-        setBriefing(d.briefing);
+        if (d.briefing) {
+          setBriefing(d.briefing);
+          setBriefingLoading(false);
+          return;
+        }
       }
     } catch {}
+
+    // Fallback: generate a local briefing without API
+    const dow = new Date().toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+    const isWknd = ["Saturday","Sunday"].includes(dow);
+    const fallback = {
+      dayOfWeek: dow,
+      greeting: isWknd ? "Weekend. Rest is part of the plan." : `${dow}. New scorecard. Let's go.`,
+      coachNote: isWknd
+        ? `It's ${dow} — your recovery and family day. Work goals don't count today. Focus on personal growth, your family, and one financial action. Target is 65. Rest with intention.`
+        : `It's ${dow}. You have a clear target: 75+. Work, personal, and financial goals are all on the board. The score updates live as you complete tasks. Treat today like a game you intend to win.`,
+      work: { challenge: "Complete your single most important work task before noon.", why: "One completed high-priority task drives more momentum than five half-started ones.", points: 20 },
+      personal: isWknd
+        ? { challenge: "30 minutes of personal development — read, listen, or reflect.", why: "Weekends are when you build the person you'll be at work next week.", points: 15 }
+        : { challenge: "Protect your morning routine from first meeting to last task.", why: "Your morning routine is your competitive edge — guard it every day.", points: 15 },
+      financial: { challenge: "Review your bank balance and log one budget number in the app.", why: "Facing your numbers removes the anxiety of avoiding them.", points: 15 },
+      targetScore: isWknd ? 65 : 75,
+      challengesCompleted: { work: false, personal: false, financial: false }
+    };
+    setBriefing(fallback);
     setBriefingLoading(false);
   };
 
@@ -496,8 +526,20 @@ export default function App() {
   }, [chatInput, chatMessages, chatLoading]);
 
   // ─── Computed ──────────────────────────────────────────────────────────────
-  const tasks = ALL_TASKS[tab] || [];
-  const score = calcDailyScore(done, habits, focus, wins, confidence);
+  // ── Day type (weekday vs weekend) ──────────────────────────────────────────
+  const todayDow = new Date().getDay(); // 0=Sun, 6=Sat
+  const isWeekend = todayDow === 0 || todayDow === 6;
+  const dayLabel = isWeekend ? "Weekend" : "Weekday";
+
+  // On weekends, active tabs are personal + financial only (work is rest mode)
+  const activeTabs = isWeekend
+    ? ["personal", "financial"]
+    : ["work", "personal", "financial"];
+
+  // Tab auto-switch to first active if current tab is work on weekend
+  const effectiveTab = (isWeekend && tab === "work") ? "personal" : tab;
+  const tasks = ALL_TASKS[effectiveTab] || [];
+  const score = calcDailyScore(done, habits, focus, wins, confidence, isWeekend);
   const doneCount = tasks.filter(t => done[t.id]).length;
   const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
   const habitsDone = habits.filter(h => h.done).length;
@@ -569,7 +611,7 @@ export default function App() {
               <div>
                 <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#93c5fd", textTransform: "uppercase" }}>Daily Briefing</div>
                 <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: "clamp(13px,3.2vw,16px)", fontWeight: 700, color: "#fff" }}>
-                  {briefing ? briefing.dayOfWeek + " — 3 Challenges" : "Loading today's briefing..."}
+                  {briefing ? briefing.dayOfWeek + (isWeekend ? " — Weekend Mode 🏖️" : " — 3 Challenges") : "Loading today's briefing..."}
                 </div>
               </div>
             </div>
@@ -608,7 +650,7 @@ export default function App() {
                   {/* Three challenges */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {[
-                      { key: "work", icon: "💼", label: "WORK", color: "#1c3d2e", bg: "#f0fdf4", pts: briefing.work?.points, challenge: briefing.work?.challenge, why: briefing.work?.why },
+                      ...(!isWeekend ? [{ key: "work", icon: "💼", label: "WORK", color: "#1c3d2e", bg: "#f0fdf4", pts: briefing.work?.points, challenge: briefing.work?.challenge, why: briefing.work?.why }] : []),
                       { key: "personal", icon: "🏠", label: "PERSONAL", color: "#7c3d00", bg: "#fff7ed", pts: briefing.personal?.points, challenge: briefing.personal?.challenge, why: briefing.personal?.why },
                       { key: "financial", icon: "📈", label: "FINANCIAL", color: "#1e3a5f", bg: "#eff6ff", pts: briefing.financial?.points, challenge: briefing.financial?.challenge, why: briefing.financial?.why },
                     ].map(item => {
@@ -816,15 +858,20 @@ export default function App() {
           </div>
 
           <div className="tabs" style={{ marginBottom: 16 }}>
-            {["work", "personal", "financial"].map(t => (
-              <button key={t} className={`tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
+            {(isWeekend ? ["personal","financial"] : ["work","personal","financial"]).map(t => (
+              <button key={t} className={`tab${effectiveTab === t ? " active" : ""}`} onClick={() => setTab(t)}>
                 {t === "work" ? "💼" : t === "personal" ? "🏠" : "📈"} {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
+            {isWeekend && (
+              <div style={{ padding: "7px 10px", background: "#fff7ed", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "#c2410c", display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                🏖️ Weekend mode
+              </div>
+            )}
           </div>
 
           <div className="progress-bar" style={{ marginBottom: 16 }}>
-            <div className="progress-fill" style={{ width: pct + "%", background: tab === "work" ? "#1c3d2e" : tab === "personal" ? "#7c3d00" : "#1e3a5f" }} />
+            <div className="progress-fill" style={{ width: pct + "%", background: effectiveTab === "work" ? "#1c3d2e" : effectiveTab === "personal" ? "#7c3d00" : "#1e3a5f" }} />
           </div>
 
           {tasks.map(task => (
