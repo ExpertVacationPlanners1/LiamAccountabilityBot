@@ -1,1343 +1,596 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-// ─── Google Fonts ─────────────────────────────────────────────────────────────
-const FONT_LINK = document.createElement("link");
-FONT_LINK.rel = "stylesheet";
-FONT_LINK.href = "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700;900&family=Nunito+Sans:wght@400;500;600;700&display=swap";
-document.head.appendChild(FONT_LINK);
+// Fonts
+const fl = document.createElement("link");
+fl.rel = "stylesheet";
+fl.href = "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;700;900&family=Nunito+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap";
+document.head.appendChild(fl);
 
-// ─── CSS ──────────────────────────────────────────────────────────────────────
-const CSS = `
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-  body{background:#f7f4ef;font-family:'Nunito Sans',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d0c9be;border-radius:2px}
-
-  /* Layout */
-  .app{max-width:1200px;margin:0 auto;padding:clamp(10px,3vw,20px);display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
-  @media(max-width:900px){.app{grid-template-columns:1fr}}
-  @media(max-width:480px){.app{padding:10px;gap:10px}}
-
-  /* Cards */
-  .card{background:#fff;border-radius:14px;border:1px solid #ede8e0;overflow:hidden}
-
-  /* Tabs */
-  .tabs{display:flex;gap:4px;padding:4px;background:#f7f4ef;border-radius:10px}
-  .tab{flex:1;padding:7px 8px;border:none;border-radius:7px;font-family:'Nunito Sans',sans-serif;font-size:clamp(11px,2.5vw,13px);font-weight:700;cursor:pointer;background:transparent;color:#71717a;letter-spacing:.3px;transition:all .15s;white-space:nowrap}
-  .tab.active{background:#fff;color:#18181b;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-
-  /* Buttons */
-  .btn{padding:10px 16px;border-radius:10px;border:none;font-family:'Nunito Sans',sans-serif;font-size:clamp(12px,2.5vw,13px);font-weight:700;cursor:pointer;transition:all .15s}
-  .btn-primary{background:#1c3d2e;color:#fff}.btn-primary:hover{background:#163325}
-  .btn-ghost{background:transparent;border:1.5px solid #d0c9be;color:#52525b}
-
-  /* Inputs */
-  input,textarea{font-family:'Nunito Sans',sans-serif;font-size:clamp(13px,3.5vw,15px);width:100%;border:1.5px solid #ede8e0;border-radius:10px;padding:10px 14px;outline:none;background:#fff;color:#18181b;transition:border .15s;-webkit-appearance:none}
-  input:focus,textarea:focus{border-color:#1c3d2e}
-
-  /* Chat bubbles */
-  .chat-bubble-user{background:#1c3d2e;color:#fff;padding:10px 14px;border-radius:16px 16px 4px 16px;max-width:82%;align-self:flex-end;font-size:clamp(13px,3.2vw,14px);line-height:1.5}
-  .chat-bubble-ai{background:#f7f4ef;color:#18181b;padding:10px 14px;border-radius:16px 16px 16px 4px;max-width:90%;align-self:flex-start;font-size:clamp(13px,3.2vw,14px);line-height:1.6;border:1px solid #ede8e0}
-
-  /* Habits */
-  .habit-ring{width:44px;height:44px;border-radius:50%;border:3px solid #ede8e0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all .2s;background:#fff;flex-shrink:0}
-  .habit-ring.done{border-color:#1c3d2e;background:#f0fdf4}
-
-  /* Progress */
-  .progress-bar{height:6px;background:#f0ebe3;border-radius:3px;overflow:hidden}
-  .progress-fill{height:100%;border-radius:3px;transition:width .4s}
-
-  /* Task rows */
-  .priority-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:6px}
-  .task-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #fafaf9;cursor:pointer}
-  .task-row:last-child{border-bottom:none}
-  .check-circle{width:22px;height:22px;border-radius:50%;border:2px solid #d0c9be;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .2s;background:#fff}
-  .check-circle.done{background:#1c3d2e;border-color:#1c3d2e;color:#fff}
-
-  /* Type */
-  .label{font-size:clamp(9px,2vw,10px);font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
-  .heading{font-family:'Fraunces',Georgia,serif;font-weight:700}
-  .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1.5px solid}
-
-  /* Toast */
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c3d2e;color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;animation:fadeup .3s ease;white-space:nowrap;max-width:90vw;text-align:center}
-  @keyframes fadeup{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-
-  /* Spinner */
-  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle}
-  @keyframes spin{to{transform:rotate(360deg)}}
-
-  /* Sidebar */
-  .sidebar{display:flex;flex-direction:column;gap:12px}
-
-  /* Telegram todos */
-  .tg-todo-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f5f0ea}
-  .tg-todo-item:last-child{border-bottom:none}
-
-  /* Mobile overrides */
-  @media(max-width:480px){
-    .card{border-radius:12px}
-    .habit-ring{width:40px;height:40px;font-size:16px}
-    .check-circle{width:20px;height:20px}
-    h1.heading{font-size:22px !important}
-    h2.heading{font-size:17px !important}
-    h3.heading{font-size:15px !important}
-  }
+// CSS
+const css = `
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:auto}
+body{background:#f7f4ef;font-family:'Nunito Sans',sans-serif;color:#18181b;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+input,textarea{font-family:inherit;-webkit-appearance:none;appearance:none}
+.app{max-width:480px;margin:0 auto;padding:12px 12px 80px;display:flex;flex-direction:column;gap:12px}
+@media(min-width:900px){.app{max-width:1100px;display:grid;grid-template-columns:1fr 360px;align-items:start;padding:20px 20px 40px;gap:16px}.mc{display:flex;flex-direction:column;gap:14px}.sc{display:flex;flex-direction:column;gap:14px}}
+.card{background:#fff;border-radius:16px;border:1px solid #e8e2d9;overflow:hidden}
+.cp{padding:16px}.cpx{padding:20px}
+.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}
+.title{font-family:'Fraunces',serif;font-weight:900;line-height:1.1}
+.mono{font-family:'JetBrains Mono',monospace;font-weight:500}
+.tabs{display:flex;gap:3px;padding:4px;background:#f7f4ef;border-radius:10px}
+.tab{flex:1;padding:8px 6px;border:none;border-radius:7px;font-size:12px;font-weight:700;background:transparent;color:#a1a1aa;transition:all .15s}
+.tab.on{background:#fff;color:#18181b;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn{padding:11px 18px;border-radius:10px;border:none;font-size:13px;font-weight:700;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-g{background:#1c3d2e;color:#fff}.btn-g:active{background:#163325}
+.btn-o{background:transparent;border:1.5px solid #e8e2d9;color:#52525b}
+.btn-s{padding:7px 12px;font-size:12px;border-radius:8px}
+input,textarea{width:100%;border:1.5px solid #e8e2d9;border-radius:10px;padding:11px 14px;font-size:15px;background:#fff;color:#18181b;outline:none;transition:border .15s}
+input:focus,textarea:focus{border-color:#1c3d2e}
+.task-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #fafaf9;cursor:pointer}
+.task-row:last-child{border-bottom:none}
+.chk{width:24px;height:24px;min-width:24px;border-radius:50%;border:2px solid #e8e2d9;display:flex;align-items:center;justify-content:center;transition:all .2s;background:#fff}
+.chk.on{background:#1c3d2e;border-color:#1c3d2e}
+.bar{height:5px;background:#ede8e0;border-radius:3px;overflow:hidden}
+.bar-f{height:100%;border-radius:3px;transition:width .5s ease}
+.hring{width:50px;height:50px;border-radius:50%;border:3px solid #e8e2d9;display:flex;align-items:center;justify-content:center;font-size:20px;background:#fff;transition:all .2s;cursor:pointer;flex-shrink:0}
+.hring.on{border-color:#1c3d2e;background:#f0fdf4}
+.chat-box{height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 0}
+.bm{background:#1c3d2e;color:#fff;padding:10px 14px;border-radius:16px 16px 4px 16px;max-width:85%;align-self:flex-end;font-size:14px;line-height:1.5}
+.ba{background:#f7f4ef;color:#18181b;padding:10px 14px;border-radius:16px 16px 16px 4px;max-width:92%;align-self:flex-start;font-size:14px;line-height:1.65;border:1px solid #e8e2d9}
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;display:inline-block}
+.spin-d{border-color:rgba(0,0,0,.1);border-top-color:#1c3d2e}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1c3d2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;max-width:88vw;text-align:center;animation:pop .25s ease;pointer-events:none}
+@keyframes pop{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.tgr{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f5f0ea}
+.tgr:last-child{border-bottom:none}
+.tgc{width:20px;height:20px;min-width:20px;border-radius:50%;border:2px solid #e8e2d9;cursor:pointer;background:transparent;flex-shrink:0;margin-top:2px}
+.qp{background:#f7f4ef;border:1px solid #e8e2d9;border-radius:20px;padding:6px 12px;font-size:11px;font-weight:700;color:#52525b;cursor:pointer}
+.qpr{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.wknd{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700}
+.tier-i{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.5px;background:#f0ebe3;color:#a1a1aa}
+.tier-i.on{color:#fff}
+.divrow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #fafaf9}
+.divrow:last-child{border-bottom:none}
+.rtrow{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #fafaf9;align-items:center}
+.rtrow:last-child{border-bottom:none}
+@media(max-width:480px){h1.title{font-size:22px!important}.hring{width:44px;height:44px;font-size:18px}.tab{font-size:11px}}
 `;
-const styleEl = document.createElement("style");
-styleEl.textContent = CSS;
-document.head.appendChild(styleEl);
+const se = document.createElement("style"); se.textContent = css; document.head.appendChild(se);
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const WORK_TASKS = [
-  { id: 1, text: "Write down your #1 work task and start it within 30 minutes", priority: "high" },
-  { id: 2, text: "Send one message that moves a stuck situation forward", priority: "high" },
-  { id: 3, text: "Block 90 minutes tomorrow morning for deep focused work", priority: "high" },
-  { id: 4, text: "Structure your morning routine — write it down and follow it once", priority: "medium" },
-  { id: 5, text: "Identify the one thing at work causing the most stress and write it plainly", priority: "medium" },
-  { id: 6, text: "Deliver one visible, measurable result your leadership will notice this month", priority: "high" },
-  { id: 7, text: "Evaluate honestly: grow here or start building an exit path — decide, don't float", priority: "high" },
+// Data
+const WORK = [
+  {id:1,text:"Write down your #1 work task and start it within 30 minutes",p:"high"},
+  {id:2,text:"Send one message that moves a stuck situation forward",p:"high"},
+  {id:3,text:"Block 90 minutes for deep focused work — phone off",p:"high"},
+  {id:4,text:"Structure your morning routine — write it and follow it once",p:"medium"},
+  {id:5,text:"Identify the one work stressor causing the most damage",p:"medium"},
+  {id:6,text:"Deliver one visible, measurable result leadership will notice",p:"high"},
+  {id:7,text:"Evaluate honestly: grow here or build an exit path — decide",p:"high"},
 ];
-
-const PERSONAL_TASKS = [
-  { id: 11, text: "4:45am — Wake up, drink water immediately, no phone for 10 minutes", priority: "high" },
-  { id: 12, text: "5:00am — Gym (already locked in — protect this every day)", priority: "high" },
-  { id: 13, text: "6:00am — Shower in 10 minutes, transition into leader mode", priority: "high" },
-  { id: 14, text: "6:25am — Open dashboard, set Today's #1 Non-Negotiable (5 min only)", priority: "high" },
-  { id: 15, text: "6:35am — Family time, present and calm, not rushed (15 min)", priority: "high" },
-  { id: 16, text: "Before bed, write down 3 things you did right today", priority: "medium" },
-  { id: 17, text: "Have one honest check-in conversation with your partner this month", priority: "high" },
+const PERSONAL = [
+  {id:11,text:"4:45am — Wake up, drink water, no phone for 10 minutes",p:"high"},
+  {id:12,text:"5:00am — Gym (non-negotiable — protect this every day)",p:"high"},
+  {id:13,text:"6:00am — Shower in 10 minutes, transition into leader mode",p:"high"},
+  {id:14,text:"6:25am — Open dashboard, set Today's #1 (5 min only)",p:"high"},
+  {id:15,text:"6:35am — Family time, present and calm, not rushed (15 min)",p:"high"},
+  {id:16,text:"Before bed, write down 3 things you did right today",p:"medium"},
+  {id:17,text:"Have one honest check-in conversation with your partner",p:"high"},
 ];
-
-const FINANCIAL_TASKS = [
-  { id: 21, text: "Write your exact monthly number for family stability — income needed vs current", priority: "high" },
-  { id: 22, text: "Open your bank account and write down your actual balance — no avoiding it", priority: "high" },
-  { id: 23, text: "List every recurring expense and circle one to cut or reduce", priority: "high" },
-  { id: 24, text: "Build a simple one-page monthly budget: income, fixed costs, variable costs, gap", priority: "high" },
-  { id: 25, text: "Identify one concrete income growth action this month", priority: "high" },
-  { id: 26, text: "Start a 3-month emergency fund plan — even if it starts at $25/week", priority: "medium" },
+const FINANCIAL = [
+  {id:21,text:"Write your exact monthly stability number — income vs current",p:"high"},
+  {id:22,text:"Open your bank account and write down your actual balance",p:"high"},
+  {id:23,text:"List every recurring expense and circle one to cut",p:"high"},
+  {id:24,text:"Build a simple budget: income, fixed costs, variable, gap",p:"high"},
+  {id:25,text:"Identify one concrete income growth action this month",p:"high"},
+  {id:26,text:"Start a 3-month emergency fund plan — $25/week counts",p:"medium"},
 ];
-
-const ALL_TASKS = { work: WORK_TASKS, personal: PERSONAL_TASKS, financial: FINANCIAL_TASKS };
-
-
-const HABITS_DEFAULT = [
-  { id: 1, name: "Gym", icon: "🏋️", streak: 0, done: false },
-  { id: 2, name: "Sleep on time", icon: "😴", streak: 0, done: false },
-  { id: 3, name: "No phone 10min AM", icon: "📵", streak: 0, done: false },
-  { id: 4, name: "Read / Learn", icon: "📚", streak: 0, done: false },
+const ALL = {work:WORK,personal:PERSONAL,financial:FINANCIAL};
+const HABITS0 = [
+  {id:"h1",name:"Gym",icon:"🏋️",streak:0,done:false},
+  {id:"h2",name:"Sleep on time",icon:"😴",streak:0,done:false},
+  {id:"h3",name:"No phone 10min AM",icon:"📵",streak:0,done:false},
+  {id:"h4",name:"Read / Learn",icon:"📚",streak:0,done:false},
 ];
+const PTS = {high:8,medium:5,low:3};
+const TIERS = [{m:0,l:"GET MOVING",c:"#f43f5e"},{m:25,l:"WARMING UP",c:"#a78bfa"},{m:45,l:"BUILDING",c:"#f97316"},{m:60,l:"SOLID",c:"#3b82f6"},{m:75,l:"STRONG",c:"#22c55e"},{m:90,l:"ELITE",c:"#f59e0b"}];
+const CAT_C = {work:"#1c3d2e",personal:"#7c3d00",financial:"#1e3a5f",home:"#5b4a00",family:"#6b21a8",health:"#065f46"};
+const CAT_E = {work:"💼",personal:"🏠",financial:"📈",home:"🏡",family:"👨‍👩‍👦",health:"💪"};
+const TPTS = [["5:00am","🏋️ Gym"],["8:00am","☀️ Morning"],["1:00pm","⚡ Midday"],["8:00pm","🌙 Evening"],["10:00pm","😴 Pre-Sleep"]];
 
-
-// ─── Scoring Engine ───────────────────────────────────────────────────────────
-// Points per task based on priority
-const TASK_POINTS = { high: 8, medium: 5, low: 3 };
-// Max possible from tasks
-const MAX_TASK_SCORE = (() => {
-  let total = 0;
-  Object.values(ALL_TASKS).forEach(tasks => tasks.forEach(t => { total += TASK_POINTS[t.priority] || 5; }));
-  return total;
-})();
-const MAX_HABIT_SCORE = HABITS_DEFAULT.length * 10; // 10pts per habit
-const MAX_FOCUS_SCORE = 10;   // 5 for setting it, 5 bonus for mentioning it in a win
-const MAX_WIN_SCORE = 6;      // 3 pts per win, up to 2 wins
-const MAX_CONFIDENCE_SCORE = 4; // up to 4 pts based on logging it
-const MAX_TOTAL = MAX_TASK_SCORE + MAX_HABIT_SCORE + MAX_FOCUS_SCORE + MAX_WIN_SCORE + MAX_CONFIDENCE_SCORE;
-
-function calcDailyScore(done, habits, focus, wins, confidence, isWeekend = false) {
-  // Task score — skip work tasks on weekends
-  let taskScore = 0;
-  const scoringCategories = isWeekend ? ["personal", "financial"] : ["work", "personal", "financial"];
-  scoringCategories.forEach(cat =>
-    ALL_TASKS[cat].forEach(t => { if (done[t.id]) taskScore += TASK_POINTS[t.priority] || 5; })
-  );
-
-  // Habit score
-  const habitScore = habits.filter(h => h.done).length * 10;
-
-  // Focus score
-  const focusScore = focus && focus.trim().length > 3 ? 5 : 0;
-
-  // Win score (up to 2 wins = 6 pts)
-  const winScore = Math.min(wins.length, 2) * 3;
-
-  // Confidence score (reward for logging it)
-  const confScore = confidence > 0 ? Math.min(4, Math.round(confidence / 2.5)) : 0;
-
-  // Dynamic max based on day type
-  const dayMaxTask = isWeekend
-    ? [...ALL_TASKS.personal, ...ALL_TASKS.financial].reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0)
-    : MAX_TASK_SCORE;
-  const dayMax = dayMaxTask + MAX_HABIT_SCORE + MAX_FOCUS_SCORE + MAX_WIN_SCORE + MAX_CONFIDENCE_SCORE;
-
-  const raw = taskScore + habitScore + focusScore + winScore + confScore;
-  const pct = Math.round((raw / dayMax) * 100);
-
-  // Breakdown for display
+// Scoring — shows TASK COUNTS in breakdown, points for score
+function score(done, habits, focus, wins, conf, isWknd) {
+  const cats = isWknd ? ["personal","financial"] : ["work","personal","financial"];
+  const earns = cats.map(c => ALL[c].filter(t=>done[t.id]).reduce((a,t)=>a+(PTS[t.p]||5),0));
+  const maxes = cats.map(c => ALL[c].reduce((a,t)=>a+(PTS[t.p]||5),0));
+  const taskEarned = earns.reduce((a,v)=>a+v,0);
+  const taskMax = maxes.reduce((a,v)=>a+v,0);
+  const habPts = habits.filter(h=>h.done).length*10;
+  const focusPts = focus?.trim().length>2?5:0;
+  const winPts = Math.min(wins.length,2)*3;
+  const confPts = conf>0?Math.min(4,Math.round(conf/2.5)):0;
+  const earned = taskEarned+habPts+focusPts+winPts+confPts;
+  const max = taskMax+habits.length*10+5+6+4;
+  const pct = max>0?Math.round((earned/max)*100):0;
+  const tier = TIERS.reduce((a,t)=>pct>=t.m?t:a,TIERS[0]);
   const breakdown = [
-    ...(!isWeekend ? [{ label: "Work Tasks", earned: WORK_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: WORK_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1c3d2e" }] : []),
-    { label: "Personal Tasks", earned: PERSONAL_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: PERSONAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#7c3d00" },
-    { label: "Financial Tasks", earned: FINANCIAL_TASKS.filter(t => done[t.id]).reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), max: FINANCIAL_TASKS.reduce((a,t) => a + (TASK_POINTS[t.priority]||5), 0), color: "#1e3a5f" },
-    { label: "Habits", earned: habitScore, max: MAX_HABIT_SCORE, color: "#065f46" },
-    { label: "Focus Set", earned: focusScore, max: MAX_FOCUS_SCORE, color: "#c9a96e" },
-    { label: "Wins Logged", earned: winScore, max: MAX_WIN_SCORE, color: "#7c3d00" },
+    ...(!isWknd?[{l:"Work",cnt:WORK.filter(t=>done[t.id]).length,tot:WORK.length,pct:WORK.length?Math.round(WORK.filter(t=>done[t.id]).length/WORK.length*100):0,pts:WORK.filter(t=>done[t.id]).reduce((a,t)=>a+(PTS[t.p]||5),0),c:"#1c3d2e"}]:[]),
+    {l:"Personal",cnt:PERSONAL.filter(t=>done[t.id]).length,tot:PERSONAL.length,pct:PERSONAL.length?Math.round(PERSONAL.filter(t=>done[t.id]).length/PERSONAL.length*100):0,pts:PERSONAL.filter(t=>done[t.id]).reduce((a,t)=>a+(PTS[t.p]||5),0),c:"#7c3d00"},
+    {l:"Financial",cnt:FINANCIAL.filter(t=>done[t.id]).length,tot:FINANCIAL.length,pct:FINANCIAL.length?Math.round(FINANCIAL.filter(t=>done[t.id]).length/FINANCIAL.length*100):0,pts:FINANCIAL.filter(t=>done[t.id]).reduce((a,t)=>a+(PTS[t.p]||5),0),c:"#1e3a5f"},
+    {l:"Habits",cnt:habits.filter(h=>h.done).length,tot:habits.length,pct:habits.length?Math.round(habits.filter(h=>h.done).length/habits.length*100):0,pts:habPts,c:"#065f46"},
+    {l:"Focus",cnt:focusPts>0?1:0,tot:1,pct:focusPts>0?100:0,pts:focusPts,c:"#92400e"},
+    {l:"Wins",cnt:Math.min(wins.length,2),tot:2,pct:Math.min(wins.length,2)*50,pts:winPts,c:"#6d28d9"},
   ];
-
-  // Performance tier
-  const tier =
-    pct >= 90 ? { label: "ELITE", color: "#fbbf24", bg: "#1c1400" } :
-    pct >= 75 ? { label: "STRONG", color: "#22c55e", bg: "#052e16" } :
-    pct >= 60 ? { label: "SOLID", color: "#3b82f6", bg: "#0f172a" } :
-    pct >= 45 ? { label: "BUILDING", color: "#f97316", bg: "#1c0a00" } :
-    pct >= 25 ? { label: "WARMING UP", color: "#a78bfa", bg: "#1e0050" } :
-                { label: "GET MOVING", color: "#f43f5e", bg: "#1c000a" };
-
-  return { pct, raw, max: dayMax, breakdown, tier, taskScore, habitScore, isWeekend };
-}
-const CAT_COLOR = { work: "#1c3d2e", personal: "#7c3d00", financial: "#1e3a5f", home: "#5b4a00", family: "#6b21a8", health: "#065f46" };
-const CAT_EMOJI = { work: "💼", personal: "🏠", financial: "📈", home: "🏡", family: "👨‍👩‍👦", health: "💪" };
-const PRI_COLOR = { high: "#dc2626", medium: "#d97706", low: "#16a34a" };
-const TOUCHPOINTS = [
-  { time: "5:00am", label: "🏋️ Gym Activation" },
-  { time: "8:00am", label: "☀️ Morning Intention" },
-  { time: "1:00pm", label: "⚡ Midday Pulse" },
-  { time: "8:00pm", label: "🌙 Evening Review" },
-  { time: "10:00pm", label: "😴 Pre-Sleep Wind Down" },
-];
-
-// ─── Safe localStorage helpers ────────────────────────────────────────────────
-function lsGet(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const val = JSON.parse(raw);
-    // Type-safe: if fallback is array, ensure result is array
-    if (Array.isArray(fallback) && !Array.isArray(val)) return fallback;
-    return val;
-  } catch { return fallback; }
-}
-function lsSet(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  return {pct,earned,max,tier,breakdown};
 }
 
-// ─── Claude AI helper ─────────────────────────────────────────────────────────
-async function askClaude(messages, system) {
-  const res = await fetch("/api/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, system })
-  });
-  if (!res.ok) throw new Error("API error");
-  const data = await res.json();
-  return data.reply || "Keep moving. What's your next step?";
-}
+// localStorage
+const ls={get:(k,fb)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  // ── Tab state ──
-  const [tab, setTab] = useState("work");
+  useEffect(()=>{window.scrollTo(0,0);},[]);
 
-  // ── Task state (in-memory, safe) ──
-  const [done, setDone] = useState(() => lsGet("v3_done", {}));
+  const dow = new Date().getDay();
+  const isWknd = dow===0||dow===6;
+  const dayName = new Date().toLocaleDateString("en-US",{weekday:"long",timeZone:"America/New_York"});
+  const dateStr = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",timeZone:"America/New_York"});
+  const activeTabs = isWknd?["personal","financial"]:["work","personal","financial"];
 
-  // ── Focus ──
-  const [focus, setFocus] = useState(() => lsGet("v3_focus", ""));
-  const [focusInput, setFocusInput] = useState(() => lsGet("v3_focus", ""));
+  const [tab,setTab]=useState(()=>isWknd?"personal":"work");
+  const [done,setDone]=useState(()=>ls.get("v3_done",{}));
+  const [habits,setHabits]=useState(()=>{const s=ls.get("v3_habits",null);return Array.isArray(s)&&s.length===HABITS0.length?s:HABITS0;});
+  const [focus,setFocus]=useState(()=>ls.get("v3_focus",""));
+  const [focusIn,setFocusIn]=useState(()=>ls.get("v3_focus",""));
+  const [conf,setConf]=useState(()=>ls.get("v3_conf",5));
+  const [wins,setWins]=useState(()=>ls.get("v3_wins",[]));
+  const [winIn,setWinIn]=useState("");
+  const [checkins,setCheckins]=useState(()=>ls.get("v3_ci",[]));
+  const [ciNote,setCiNote]=useState("");
+  const [budget,setBudget]=useState(()=>ls.get("v3_budget",{income:"",fixed:"",variable:"",target:""}));
+  const [savings,setSavings]=useState(()=>ls.get("v3_sav",[{id:1,name:"Emergency Fund (3mo)",target:5000,current:0},{id:2,name:"Family Stability Buffer",target:2000,current:0}]));
+  const [msgs,setMsgs]=useState([{r:"ai",t:"Hey Liam 👋 I'm your AI coach. Tell me what's on your mind — work stress, a decision you're avoiding, or how today's going. I'll give you a direct, honest response."}]);
+  const [chatIn,setChatIn]=useState("");
+  const [chatLoad,setChatLoad]=useState(false);
+  const chatEnd=useRef(null);
+  const [briefing,setBriefing]=useState(null);
+  const [briefLoad,setBriefLoad]=useState(false);
+  const [coach,setCoach]=useState("");
+  const [coachLoad,setCoachLoad]=useState(false);
+  const [coachTime,setCoachTime]=useState("");
+  const [tgTodos,setTgTodos]=useState([]);
+  const [tgLoad,setTgLoad]=useState(false);
+  const [toast,setToast]=useState("");
+  const [confSaved,setConfSaved]=useState(false);
+  const [confExpanded,setConfExpanded]=useState(false);
 
-  // ── Habits (in-memory) ──
-  const [habits, setHabits] = useState(() => { const saved = lsGet("v3_habits", null); return Array.isArray(saved) && saved.length === HABITS_DEFAULT.length ? saved : HABITS_DEFAULT; });
+  const effTab = (isWknd&&tab==="work")?"personal":tab;
+  const tasks = ALL[effTab]||[];
+  const doneCnt = tasks.filter(t=>done[t.id]).length;
+  const pct = tasks.length?Math.round(doneCnt/tasks.length*100):0;
+  const sc = score(done,habits,focus,wins,conf,isWknd);
+  const tabC = {work:"#1c3d2e",personal:"#7c3d00",financial:"#1e3a5f"}[effTab]||"#1c3d2e";
+  const bCalc=(()=>{const i=+budget.income||0,f=+budget.fixed||0,v=+budget.variable||0,t=+budget.target||0;return{spend:f+v,left:i-f-v,gap:t-(i-f-v)};})();
+  const activeChalKeys=isWknd?["personal","financial"]:["work","personal","financial"];
+  const chalDone=briefing?activeChalKeys.filter(k=>briefing.challengesCompleted?.[k]).length:0;
 
-  // ── Confidence ──
-  const [confidence, setConfidence] = useState(() => lsGet("v3_confidence", 5));
-  const [confSaved, setConfSaved] = useState(false);
+  useEffect(()=>{chatEnd.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
+  useEffect(()=>{fetchTg();fetchBriefing();},[]);// eslint-disable-line
+  useEffect(()=>{const t=setTimeout(()=>genCoach(),1800);return()=>clearTimeout(t);},[done,habits,conf,focus]);// eslint-disable-line
 
-  // ── Wins ──
-  const [wins, setWins] = useState(() => lsGet("v3_wins", []));
-  const [winInput, setWinInput] = useState("");
+  const showToast=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+  const toggleTask=id=>{setDone(p=>{const n={...p,[id]:!p[id]};ls.set("v3_done",n);return n;});};
+  const toggleHabit=id=>{setHabits(p=>{const n=p.map(h=>h.id===id?{...h,done:!h.done,streak:!h.done?h.streak+1:Math.max(0,h.streak-1)}:h);ls.set("v3_habits",n);return n;});};
+  const saveFocus=()=>{ls.set("v3_focus",focusIn);setFocus(focusIn);showToast("Focus saved ✓");};
+  const saveConf=()=>{ls.set("v3_conf",conf);setConfSaved(true);setTimeout(()=>setConfSaved(false),2000);showToast(`Confidence ${conf}/10 logged`);};
+  const addWin=()=>{if(!winIn.trim())return;const n=[{id:Date.now(),text:winIn.trim(),date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})},...wins].slice(0,30);setWins(n);ls.set("v3_wins",n);setWinIn("");showToast("Win logged 🏆");};
+  const addCi=()=>{if(!ciNote.trim())return;const n=[{id:Date.now(),note:ciNote.trim(),time:new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}),date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})},...checkins].slice(0,20);setCheckins(n);ls.set("v3_ci",n);setCiNote("");showToast("Check-in saved ✓");};
 
-  // ── Check-ins ──
-  const [checkins, setCheckins] = useState(() => lsGet("v3_checkins", []));
-  const [checkinNote, setCheckinNote] = useState("");
+  const fetchTg=async()=>{setTgLoad(true);try{const r=await fetch("/api/todos");if(r.ok){const d=await r.json();setTgTodos(Array.isArray(d.todos)?d.todos:[]);}}catch{}setTgLoad(false);};
+  const markTgDone=async id=>{try{await fetch("/api/todos",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,done:true})});setTgTodos(p=>p.map(t=>t.id===id?{...t,done:true}:t));}catch{}};
+  const delTg=async id=>{try{await fetch("/api/todos",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});setTgTodos(p=>p.filter(t=>t.id!==id));}catch{}};
 
-  // ── AI Chat ──
-  // ── Daily Coach state ──
-  const [coachMessage, setCoachMessage] = useState("");
-  const [coachLoading, setCoachLoading] = useState(false);
-  const [coachLastUpdated, setCoachLastUpdated] = useState(null);
-  const [coachExpanded, setCoachExpanded] = useState(true);
-
-  // ── Daily Briefing state ──
-  const [briefing, setBriefing] = useState(null);
-  const [briefingLoading, setBriefingLoading] = useState(false);
-  const [briefingExpanded, setBriefingExpanded] = useState(true);
-
-  const [chatMessages, setChatMessages] = useState([
-    { role: "assistant", content: "Hey Liam 👋 I'm your AI coach. Tell me what's on your mind — work stress, a decision you're avoiding, or just what you need to focus on today. I'll give you a direct, honest response." }
-  ]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef(null);
-
-  // ── Telegram todos ──
-  const [tgTodos, setTgTodos] = useState([]);
-  const [tgLoading, setTgLoading] = useState(false);
-
-  // ── Budget (in-memory) ──
-  const [budget, setBudget] = useState(() => lsGet("v3_budget", { income: "", fixed: "", variable: "", target: "" }));
-
-  // ── Toast ──
-  const [toast, setToast] = useState("");
-
-  // ── Savings goals ──
-  const [savings, setSavings] = useState(() => lsGet("v3_savings", [
-    { id: 1, name: "Emergency Fund (3mo)", target: 5000, current: 0 },
-    { id: 2, name: "Family Stability Buffer", target: 2000, current: 0 },
-  ]));
-
-  // ─── Effects ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    fetchTgTodos();
-    fetchBriefing();
-  }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  // Auto-generate coaching when done/habits/confidence changes (debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      generateCoachMessage();
-    }, 1500); // Wait 1.5s after last change
-    return () => clearTimeout(timer);
-  }, [done, habits, confidence, focus]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2500);
+  const fetchBriefing=async(force=false)=>{
+    setBriefLoad(true);
+    try{
+      const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),5000);
+      const r=await fetch("/api/briefing"+(force?"?force=true":""),{signal:ctrl.signal});clearTimeout(t);
+      if(r.ok){const d=await r.json();if(d.briefing){const saved=ls.get("v3_bc",{});const sd=ls.get("v3_bd","");const today=new Date().toDateString();if(sd===today)d.briefing.challengesCompleted={...d.briefing.challengesCompleted,...Object.fromEntries(Object.entries(saved).filter(([,v])=>v===true))};setBriefing(d.briefing);setBriefLoad(false);return;}}
+    }catch{}
+    const today=new Date().toDateString();const saved=ls.get("v3_bc",{});const sd=ls.get("v3_bd","");
+    setBriefing({dayOfWeek:dayName,coachNote:isWknd?`It's ${dayName} — recovery day. Work goals don't count. Focus on personal growth, family, and one financial action. Target: 65. Rest with intention.`:`It's ${dayName}. Target: 75+. Work, personal, and financial goals all on the board. Treat it like a game you intend to win.`,work:{challenge:"Complete your single most important work task before noon.",why:"One completed high-priority task beats five half-started ones.",points:20},personal:isWknd?{challenge:"30 minutes of personal development — read, listen, or reflect.",why:"Weekends build the person you'll be at work next week.",points:15}:{challenge:"Protect your morning routine all day.",why:"Your morning routine is your competitive edge.",points:15},financial:{challenge:"Review your bank balance and log one budget number.",why:"Facing your numbers removes the anxiety of avoiding them.",points:15},targetScore:isWknd?65:75,challengesCompleted:sd===today?saved:{work:false,personal:false,financial:false}});
+    if(sd!==today)ls.set("v3_bd",today);
+    setBriefLoad(false);
   };
 
-  const fetchTgTodos = async () => {
-    setTgLoading(true);
-    try {
-      const r = await fetch("/api/todos");
-      if (r.ok) {
-        const d = await r.json();
-        setTgTodos(Array.isArray(d.todos) ? d.todos : []);
-      }
-    } catch {}
-    setTgLoading(false);
+  const completeChallenge=async cat=>{
+    setBriefing(p=>{if(!p)return p;const n={...p,challengesCompleted:{...p.challengesCompleted,[cat]:true}};ls.set("v3_bc",n.challengesCompleted);return n;});
+    showToast(`${cat.charAt(0).toUpperCase()+cat.slice(1)} done! +${cat==="work"?20:15} pts`);
+    try{await fetch("/api/briefing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category:cat})});}catch{}
   };
 
-  const markTgDone = async (id) => {
-    try {
-      await fetch("/api/todos", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, done: true })
-      });
-      setTgTodos(prev => prev.map(t => t.id === id ? { ...t, done: true } : t));
-    } catch {}
+  const genCoach=async()=>{
+    setCoachLoad(true);
+    const s=score(done,habits,focus,wins,conf,isWknd);
+    const h=new Date().getHours();
+    const tod=h<9?"morning":h<13?"mid-morning":h<17?"afternoon":h<20?"evening":"night";
+    const wkDone=WORK.filter(t=>done[t.id]).length,pDone=PERSONAL.filter(t=>done[t.id]).length,fDone=FINANCIAL.filter(t=>done[t.id]).length;
+    const habDone=habits.filter(h=>h.done).map(h=>h.name).join(", ")||"none";
+    const habMiss=habits.filter(h=>!h.done).map(h=>h.name).join(", ");
+    const prompt=[`You are Liam's life coach. It's ${tod} on ${dayName}.`,`SCORE: ${s.pct}/100 (${s.tier.label}) — ${s.earned} of ${s.max} pts`,`Tasks: ${isWknd?"":wkDone+"/"+WORK.length+" work, "}${pDone}/${PERSONAL.length} personal, ${fDone}/${FINANCIAL.length} financial`,`Habits done: ${habDone}${habMiss?", missed: "+habMiss:""}`,`Focus: ${focus||"not set"} | Confidence: ${conf}/10 | Last win: ${wins[0]?.text||"none"}`,``,`3-4 sentence coaching message for a former athlete. Reference the actual score and tier by number. Be specific about what's done and what's missing. End with one sharp challenge. No fluff.`].join("\n");
+    try{const r=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:prompt}],system:"Direct, warm life coach. 3-4 sentences max. Reference exact score number. End with one specific action."})});if(r.ok){const d=await r.json();setCoach(d.reply||"");setCoachTime(new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}));}}catch{setCoach("Keep your head in the game. One task at a time.");}
+    setCoachLoad(false);
   };
 
-  const deleteTg = async (id) => {
-    try {
-      await fetch("/api/todos", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      setTgTodos(prev => prev.filter(t => t.id !== id));
-    } catch {}
-  };
+  const sendChat=useCallback(async()=>{
+    if(!chatIn.trim()||chatLoad)return;
+    const um={r:"user",t:chatIn.trim()};const nm=[...msgs,um];setMsgs(nm);setChatIn("");setChatLoad(true);
+    try{const r=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:nm.map(m=>({role:m.r==="ai"?"assistant":"user",content:m.t})),system:"Liam's AI life coach. Florida, 5am gym habit, work stress main trigger, financial pressure for family. 3-5 sentences. Direct, warm, end with one specific next move."})});if(r.ok){const d=await r.json();setMsgs(p=>[...p,{r:"ai",t:d.reply||"Keep moving."}]);}}catch{setMsgs(p=>[...p,{r:"ai",t:"Trouble connecting. Try again."}]);}
+    setChatLoad(false);
+  },[chatIn,msgs,chatLoad]);
 
-  const toggleTask = (id) => {
-    setDone(prev => {
-      const next = { ...prev, [id]: !prev[id] };
-      lsSet("v3_done", next);
-      return next;
-    });
-  };
-
-  const saveFocus = () => {
-    lsSet("v3_focus", focusInput);
-    setFocus(focusInput);
-    showToast("Focus saved ✓");
-  };
-
-  const toggleHabit = (id) => {
-    setHabits(prev => {
-      const next = prev.map(h =>
-        h.id === id ? { ...h, done: !h.done, streak: !h.done ? h.streak + 1 : Math.max(0, h.streak - 1) } : h
-      );
-      lsSet("v3_habits", next);
-      return next;
-    });
-  };
-
-  const addWin = () => {
-    if (!winInput.trim()) return;
-    const newWins = [{ id: Date.now(), text: winInput.trim(), date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) }, ...wins].slice(0, 30);
-    setWins(newWins);
-    lsSet("v3_wins", newWins);
-    setWinInput("");
-    showToast("Win logged 🏆");
-  };
-
-  const addCheckin = () => {
-    if (!checkinNote.trim()) return;
-    const newCheckins = [{ id: Date.now(), note: checkinNote.trim(), time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }), date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) }, ...checkins].slice(0, 20);
-    setCheckins(newCheckins);
-    lsSet("v3_checkins", newCheckins);
-    setCheckinNote("");
-    showToast("Check-in saved ✓");
-  };
-
-  const saveConfidence = () => {
-    lsSet("v3_confidence", confidence);
-    setConfSaved(true);
-    setTimeout(() => setConfSaved(false), 2000);
-    showToast(`Confidence: ${confidence}/10 logged`);
-  };
-
-  const fetchBriefing = async (force = false) => {
-    setBriefingLoading(true);
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
-      const r = await fetch('/api/briefing' + (force ? '?force=true' : ''), { signal: controller.signal });
-      clearTimeout(timeout);
-      if (r.ok) {
-        const d = await r.json();
-        if (d.briefing) {
-          // Merge in localStorage challenges as backup if Redis lost them
-          const saved = lsGet("v3_briefing_challenges", null);
-          const savedDate = lsGet("v3_briefing_date", "");
-          const today = new Date().toDateString();
-          if (saved && savedDate === today) {
-            d.briefing.challengesCompleted = {
-              ...d.briefing.challengesCompleted,
-              ...Object.fromEntries(Object.entries(saved).filter(([,v]) => v === true))
-            };
-          }
-          setBriefing(d.briefing);
-          setBriefingLoading(false);
-          return;
-        }
-      }
-    } catch {}
-
-    // Fallback: generate a local briefing without API
-    const dow = new Date().toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-    const isWknd = ["Saturday","Sunday"].includes(dow);
-    const fallback = {
-      dayOfWeek: dow,
-      greeting: isWknd ? "Weekend. Rest is part of the plan." : `${dow}. New scorecard. Let's go.`,
-      coachNote: isWknd
-        ? `It's ${dow} — your recovery and family day. Work goals don't count today. Focus on personal growth, your family, and one financial action. Target is 65. Rest with intention.`
-        : `It's ${dow}. You have a clear target: 75+. Work, personal, and financial goals are all on the board. The score updates live as you complete tasks. Treat today like a game you intend to win.`,
-      work: { challenge: "Complete your single most important work task before noon.", why: "One completed high-priority task drives more momentum than five half-started ones.", points: 20 },
-      personal: isWknd
-        ? { challenge: "30 minutes of personal development — read, listen, or reflect.", why: "Weekends are when you build the person you'll be at work next week.", points: 15 }
-        : { challenge: "Protect your morning routine from first meeting to last task.", why: "Your morning routine is your competitive edge — guard it every day.", points: 15 },
-      financial: { challenge: "Review your bank balance and log one budget number in the app.", why: "Facing your numbers removes the anxiety of avoiding them.", points: 15 },
-      targetScore: isWknd ? 65 : 75,
-      challengesCompleted: (() => {
-        const saved = lsGet("v3_briefing_challenges", null);
-        const today = new Date().toDateString();
-        const savedDate = lsGet("v3_briefing_date", "");
-        // Only restore if saved on same day
-        if (saved && savedDate === today) return saved;
-        lsSet("v3_briefing_date", today);
-        return { work: false, personal: false, financial: false };
-      })()
-    };
-    setBriefing(fallback);
-    setBriefingLoading(false);
-  };
-
-  const completeBriefingChallenge = async (category) => {
-    // Update local state immediately
-    setBriefing(prev => {
-      const updated = prev ? {
-        ...prev,
-        challengesCompleted: { ...(prev.challengesCompleted || {}), [category]: true }
-      } : prev;
-      // Save to localStorage as backup
-      if (updated) lsSet("v3_briefing_challenges", updated.challengesCompleted);
-      return updated;
-    });
-    showToast(category.charAt(0).toUpperCase() + category.slice(1) + " challenge complete! +" + (category === 'work' ? 20 : 15) + " pts");
-    // Also save to Redis (best effort)
-    try {
-      await fetch('/api/briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category })
-      });
-    } catch {}
-  };
-
-  const generateCoachMessage = async () => {
-    setCoachLoading(true);
-    const hour = new Date().getHours();
-    const timeOfDay = hour < 9 ? "morning" : hour < 13 ? "mid-morning" : hour < 17 ? "afternoon" : hour < 20 ? "evening" : "night";
-
-    // Build honest progress snapshot
-    const totalWork = WORK_TASKS.length;
-    const totalPersonal = PERSONAL_TASKS.length;
-    const totalFinancial = FINANCIAL_TASKS.length;
-    const doneWork = WORK_TASKS.filter(t => done[t.id]).length;
-    const donePersonal = PERSONAL_TASKS.filter(t => done[t.id]).length;
-    const doneFinancial = FINANCIAL_TASKS.filter(t => done[t.id]).length;
-    const totalDone = doneWork + donePersonal + doneFinancial;
-    const totalTasks = totalWork + totalPersonal + totalFinancial;
-    const habitsDoneCount = habits.filter(h => h.done).length;
-    const completedHabitNames = habits.filter(h => h.done).map(h => h.name).join(", ");
-    const missedHabitNames = habits.filter(h => !h.done).map(h => h.name).join(", ");
-    const todayFocus = focus || "not set";
-    const recentWin = wins[0]?.text || "none logged today";
-    const confScore = confidence;
-
-    const currentScore = calcDailyScore(done, habits, focus, wins, confidence, isWeekend);
-    const progress = [
-      "You are Liam's personal life coach. It's " + timeOfDay + " on " + new Date().toLocaleDateString("en-US",{weekday:"long"}) + ".",
-      "",
-      "LIAM'S DAILY SCORE: " + currentScore.pct + "/100 (" + currentScore.tier.label + ")",
-      "Points earned: " + currentScore.raw + " of " + currentScore.max + " possible",
-      "",
-      "Breakdown:",
-      "- Tasks completed: " + totalDone + "/" + totalTasks + " (" + doneWork + "/" + totalWork + " work, " + donePersonal + "/" + totalPersonal + " personal, " + doneFinancial + "/" + totalFinancial + " financial)",
-      "- Habits done today: " + habitsDoneCount + "/" + habits.length + (completedHabitNames ? " (" + completedHabitNames + ")" : ""),
-      missedHabitNames ? "- Habits not done: " + missedHabitNames : "",
-      "- Today's focus task: " + todayFocus,
-      "- Confidence today: " + confScore + "/10",
-      "- Most recent win: " + recentWin,
-      "",
-      "Write a 3-4 sentence coaching message for a former athlete who needs direct feedback on his score and performance. Reference the actual score number and tier. If score is rising, acknowledge the momentum and push for more. If score is low or stalled, be direct — tell him exactly which category will move the score most right now and what action to take. End with a challenge or specific target. No fluff. He responds to athletic performance framing."
-    ].filter(Boolean).join("\n");
-    const prompt = progress;
-
-    try {
-      const res = await fetch("/api/coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          system: "You are a direct, honest, warm life coach. Respond in 3-4 sentences maximum. No generic motivation — speak to this person's specific situation."
-        })
-      });
-      const data = await res.json();
-      setCoachMessage(data.reply || "");
-      setCoachLastUpdated(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
-    } catch {
-      setCoachMessage("Complete one task right now. Don't think about the list — just pick the first incomplete item and start it.");
-    }
-    setCoachLoading(false);
-  };
-
-  const sendChat = useCallback(async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = { role: "user", content: chatInput.trim() };
-    const newMessages = [...chatMessages, userMsg];
-    setChatMessages(newMessages);
-    setChatInput("");
-    setChatLoading(true);
-
-    const COACH_SYSTEM = `You are Liam's personal AI life coach. About Liam: lives in Florida, 5am gym habit, work stress is his main trigger, financial pressure for his family is his biggest fear. Stress pattern: stress → overanalysis → hesitation → guilt → lower confidence → more stress. Rules: keep responses to 3-5 sentences. Be warm but direct. End with one specific next move. Never say "I understand" or "that must be hard" — just help him move forward.`;
-
-    try {
-      const reply = await askClaude(
-        newMessages.map(m => ({ role: m.role, content: m.content })),
-        COACH_SYSTEM
-      );
-      setChatMessages(prev => [...prev, { role: "assistant", content: reply }]);
-    } catch {
-      setChatMessages(prev => [...prev, { role: "assistant", content: "Having trouble connecting. Check your API key in Vercel env vars, then try again." }]);
-    }
-    setChatLoading(false);
-  }, [chatInput, chatMessages, chatLoading]);
-
-  // ─── Computed ──────────────────────────────────────────────────────────────
-  // ── Day type (weekday vs weekend) ──────────────────────────────────────────
-  const todayDow = new Date().getDay(); // 0=Sun, 6=Sat
-  const isWeekend = todayDow === 0 || todayDow === 6;
-  const dayLabel = isWeekend ? "Weekend" : "Weekday";
-
-  // On weekends, active tabs are personal + financial only (work is rest mode)
-  const activeTabs = isWeekend
-    ? ["personal", "financial"]
-    : ["work", "personal", "financial"];
-
-  // Tab auto-switch to first active if current tab is work on weekend
-  const effectiveTab = (isWeekend && tab === "work") ? "personal" : tab;
-  const tasks = ALL_TASKS[effectiveTab] || [];
-  const score = calcDailyScore(done, habits, focus, wins, confidence, isWeekend);
-  const doneCount = tasks.filter(t => done[t.id]).length;
-  const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
-  const habitsDone = habits.filter(h => h.done).length;
-  const pendingTg = tgTodos.filter(t => !t.done);
-  const completedTg = tgTodos.filter(t => t.done).slice(0, 3);
-
-  const budgetGap = (() => {
-    const i = parseFloat(budget.income) || 0;
-    const f = parseFloat(budget.fixed) || 0;
-    const v = parseFloat(budget.variable) || 0;
-    const t = parseFloat(budget.target) || 0;
-    return { spend: f + v, left: i - f - v, gap: t - (i - f - v) };
-  })();
-
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="app">
-      {/* ── MAIN COLUMN ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
+      <div className="mc">
         {/* Header */}
-        <div className="card" style={{ padding: "clamp(12px,3vw,18px) clamp(14px,4vw,22px)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div className="card cpx">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
             <div>
-              <div className="label" style={{ color: "#1c3d2e", marginBottom: 4 }}>🎯 Life Command Center</div>
-              <h1 className="heading" style={{ fontSize: "clamp(20px,5vw,26px)", color: "#18181b", lineHeight: 1.2 }}>Accountability System</h1>
-              <p style={{ fontSize: 12, color: "#71717a", marginTop: 4 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
+              <div className="eyebrow" style={{color:"#1c3d2e",marginBottom:6}}>🎯 Life Command Center</div>
+              <h1 className="title" style={{fontSize:"clamp(22px,6vw,30px)",color:"#18181b"}}>Accountability<br/>System</h1>
+              <p style={{fontSize:12,color:"#a1a1aa",marginTop:5}}>{dayName}, {dateStr}{isWknd&&<span className="wknd" style={{marginLeft:8}}>🏖️ Weekend</span>}</p>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {["work", "personal", "financial"].map(c => {
-                const t = ALL_TASKS[c];
-                const d = t.filter(task => done[task.id]).length;
-                const colors = { work: "#1c3d2e", personal: "#7c3d00", financial: "#1e3a5f" };
-                return (
-                  <div key={c} style={{ textAlign: "center", background: "#f7f4ef", padding: "8px 14px", borderRadius: 10 }}>
-                    <div style={{ fontSize: "clamp(14px,3.8vw,18px)", fontWeight: 900, color: colors[c] }}>{d}/{t.length}</div>
-                    <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>{c}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Focus Task */}
-          <div style={{ marginTop: 16, padding: 14, background: "#f7f4ef", borderRadius: 12 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>⚡ TODAY'S #1 NON-NEGOTIABLE</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={focusInput}
-                onChange={e => setFocusInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && saveFocus()}
-                placeholder="What MUST get done today? Be specific."
-                style={{ flex: 1 }}
-              />
-              <button className="btn btn-primary" onClick={saveFocus} style={{ whiteSpace: "nowrap" }}>Save</button>
-            </div>
-            {focus && <p style={{ marginTop: 8, fontSize: "clamp(13px,2.8vw,14px)", fontWeight: 600, color: "#1c3d2e" }}>→ {focus}</p>}
-          </div>
-        </div>
-
-        {/* Daily Briefing Panel */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div
-            style={{ background: "linear-gradient(135deg,#1a2f4a,#0f1e35)", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-            onClick={() => setBriefingExpanded(p => !p)}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 20 }}>📋</span>
-              <div>
-                <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#93c5fd", textTransform: "uppercase" }}>Daily Briefing</div>
-                <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: "clamp(13px,3.2vw,16px)", fontWeight: 700, color: "#fff" }}>
-                  {briefing ? briefing.dayOfWeek + (isWeekend ? " — Weekend Mode 🏖️" : " — 3 Challenges") : "Loading today's briefing..."}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {briefing && (
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd", fontFamily: "'Nunito Sans',sans-serif" }}>
-                  Target: {briefing.targetScore}/100
-                </span>
-              )}
-              <button
-                onClick={e => { e.stopPropagation(); fetchBriefing(true); }}
-                style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "5px 10px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif" }}
-              >
-                {briefingLoading ? "..." : "↺"}
-              </button>
-              <span style={{ color: "#93c5fd", fontSize: "clamp(13px,2.8vw,14px)" }}>{briefingExpanded ? "▲" : "▼"}</span>
-            </div>
-          </div>
-
-          {briefingExpanded && (
-            <div style={{ padding: "18px 20px" }}>
-              {briefingLoading && !briefing ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0" }}>
-                  <div className="spinner" style={{ borderTopColor: "#1e3a5f", borderColor: "#ede8e0" }} />
-                  <span style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>Generating today's challenges...</span>
-                </div>
-              ) : briefing ? (
-                <>
-                  {/* Coach note */}
-                  <div style={{ background: "#f0f7ff", borderRadius: 10, padding: "12px 16px", borderLeft: "4px solid #1e3a5f", marginBottom: 16 }}>
-                    <p style={{ fontSize: 13, lineHeight: 1.7, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
-                      {briefing.coachNote}
-                    </p>
-                  </div>
-
-                  {/* Three challenges */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {[
-                      ...(!isWeekend ? [{ key: "work", icon: "💼", label: "WORK", color: "#1c3d2e", bg: "#f0fdf4", pts: briefing.work?.points, challenge: briefing.work?.challenge, why: briefing.work?.why }] : []),
-                      { key: "personal", icon: "🏠", label: "PERSONAL", color: "#7c3d00", bg: "#fff7ed", pts: briefing.personal?.points, challenge: briefing.personal?.challenge, why: briefing.personal?.why },
-                      { key: "financial", icon: "📈", label: "FINANCIAL", color: "#1e3a5f", bg: "#eff6ff", pts: briefing.financial?.points, challenge: briefing.financial?.challenge, why: briefing.financial?.why },
-                    ].map(item => {
-                      const isDone = briefing.challengesCompleted?.[item.key];
-                      return (
-                        <div key={item.key} style={{ background: isDone ? item.bg : "#fafaf9", borderRadius: 12, padding: "14px 16px", border: "1.5px solid " + (isDone ? item.color : "#ede8e0"), opacity: isDone ? 1 : 0.95, transition: "all .2s" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                                <span style={{ fontSize: "clamp(13px,2.8vw,14px)" }}>{item.icon}</span>
-                                <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: item.color, textTransform: "uppercase" }}>{item.label}</span>
-                                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: item.color, background: item.bg, padding: "2px 6px", borderRadius: 4 }}>+{item.pts} pts</span>
-                                {isDone && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✓ DONE</span>}
-                              </div>
-                              <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: "clamp(13px,2.8vw,14px)", fontWeight: 600, color: isDone ? "#6b7280" : "#18181b", lineHeight: 1.5, textDecoration: isDone ? "line-through" : "none" }}>
-                                {item.challenge}
-                              </p>
-                              {item.why && !isDone && (
-                                <p style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 12, color: "#71717a", marginTop: 4, fontStyle: "italic" }}>
-                                  → {item.why}
-                                </p>
-                              )}
-                            </div>
-                            {!isDone && (
-                              <button
-                                onClick={() => completeBriefingChallenge(item.key)}
-                                style={{ background: item.color, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif", whiteSpace: "nowrap", flexShrink: 0 }}
-                              >
-                                Mark Done
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Progress on challenges */}
-                  {briefing.challengesCompleted && (
-                    <div style={{ marginTop: 14, padding: "10px 14px", background: "#f7f4ef", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 600, color: "#52525b" }}>
-                        {(() => {
-                          const activeKeys = isWeekend ? ["personal","financial"] : ["work","personal","financial"];
-                          const doneCount = activeKeys.filter(k => briefing.challengesCompleted[k]).length;
-                          return doneCount + "/" + activeKeys.length + " challenges complete";
-                        })()}
-                      </span>
-                      <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 12, color: "#1c3d2e", fontWeight: 700 }}>
-                        {(briefing.challengesCompleted.work ? briefing.work.points : 0) +
-                         (briefing.challengesCompleted.personal ? briefing.personal.points : 0) +
-                         (briefing.challengesCompleted.financial ? briefing.financial.points : 0)} challenge pts earned
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ textAlign: "center", padding: "16px 0" }}>
-                  <p style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", marginBottom: 12 }}>No briefing loaded yet.</p>
-                  <button className="btn btn-primary" onClick={() => fetchBriefing()} style={{ fontSize: 13 }}>Generate Today's Briefing</button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Daily Score + Coach Panel */}
-        <div className="card" style={{ padding: 0, overflow: "hidden", border: "2px solid " + score.tier.color }}>
-
-          {/* Score Header */}
-          <div style={{ background: score.tier.bg, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: score.tier.color, textTransform: "uppercase", marginBottom: 4 }}>🏆 Daily Performance Score</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: "clamp(40px,10vw,56px)", fontWeight: 900, color: score.tier.color, lineHeight: 1 }}>{score.pct}</span>
-                <span style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 20, fontWeight: 700, color: score.tier.color, opacity: 0.6 }}>/100</span>
-              </div>
-              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 700, color: score.tier.color, marginTop: 2, letterSpacing: 2 }}>{score.tier.label}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 11, color: score.tier.color, opacity: 0.7, marginBottom: 6 }}>{score.raw} of {score.max} pts earned</div>
-              {/* Circular progress */}
+            <div style={{textAlign:"center",flexShrink:0}}>
               <svg width="72" height="72" viewBox="0 0 72 72">
-                <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6"/>
-                <circle cx="36" cy="36" r="30" fill="none" stroke={score.tier.color} strokeWidth="6"
-                  strokeDasharray={2 * Math.PI * 30}
-                  strokeDashoffset={2 * Math.PI * 30 * (1 - score.pct / 100)}
-                  strokeLinecap="round"
-                  transform="rotate(-90 36 36)"
-                  style={{ transition: "stroke-dashoffset 0.8s ease" }}
-                />
-                <text x="36" y="40" textAnchor="middle" fill={score.tier.color} fontSize="14" fontWeight="900" fontFamily="sans-serif">{score.pct}%</text>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#ede8e0" strokeWidth="5"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke={sc.tier.c} strokeWidth="5"
+                  strokeDasharray={2*Math.PI*28} strokeDashoffset={2*Math.PI*28*(1-sc.pct/100)}
+                  strokeLinecap="round" transform="rotate(-90 36 36)" style={{transition:"stroke-dashoffset .8s"}}/>
+                <text x="36" y="40" textAnchor="middle" fill={sc.tier.c} fontSize="15" fontWeight="900" fontFamily="'Fraunces',serif">{sc.pct}</text>
               </svg>
+              <div style={{fontSize:9,fontWeight:800,letterSpacing:1,color:sc.tier.c,marginTop:2}}>{sc.tier.l}</div>
             </div>
           </div>
 
-          {/* Score Breakdown */}
-          <div style={{ padding: "clamp(10px,2.5vw,14px) clamp(14px,4vw,22px)", background: "#fff", borderBottom: "1px solid #f0ebe3" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
-              {score.breakdown.map(item => {
-                const itemPct = item.max > 0 ? Math.round((item.earned / item.max) * 100) : 0;
-                return (
-                  <div key={item.label}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#71717a", fontFamily: "'Nunito Sans',sans-serif", textTransform: "uppercase", letterSpacing: 0.8 }}>{item.label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono',monospace" }}>{item.earned}/{item.max}</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: itemPct + "%", background: item.color, transition: "width 0.5s ease" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Category counts — tap to switch tab */}
+          <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+            {activeTabs.map(c=>{const cnt=ALL[c].filter(t=>done[t.id]).length,tot=ALL[c].length;const colors={work:"#1c3d2e",personal:"#7c3d00",financial:"#1e3a5f"};return(
+              <div key={c} onClick={()=>setTab(c)} style={{flex:1,minWidth:80,padding:"10px 12px",background:c===effTab?"#f7f4ef":"#fafafa",borderRadius:10,border:"1.5px solid",borderColor:c===effTab?colors[c]:"transparent",cursor:"pointer",transition:"all .15s"}}>
+                <div style={{fontSize:"clamp(17px,4.5vw,22px)",fontWeight:900,color:colors[c]}}>{cnt}<span style={{fontSize:11,color:"#a1a1aa",fontWeight:600}}>/{tot}</span></div>
+                <div className="eyebrow" style={{color:"#a1a1aa",fontSize:9,marginTop:2}}>{c}</div>
+              </div>
+            );})}
+          </div>
 
-            {/* Tier ladder */}
-            <div style={{ display: "flex", gap: 4, marginTop: 14, alignItems: "center" }}>
-              <span style={{ fontSize: 10, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", marginRight: 4, fontWeight: 700 }}>TARGET:</span>
-              {[
-                { min: 0, label: "GET MOVING", color: "#f43f5e" },
-                { min: 25, label: "WARMING UP", color: "#a78bfa" },
-                { min: 45, label: "BUILDING", color: "#f97316" },
-                { min: 60, label: "SOLID", color: "#3b82f6" },
-                { min: 75, label: "STRONG", color: "#22c55e" },
-                { min: 90, label: "ELITE", color: "#fbbf24" },
-              ].map(tier => (
-                <div key={tier.label} style={{
-                  padding: "3px 8px", borderRadius: 20, fontSize: 9, fontWeight: 700,
-                  fontFamily: "'Nunito Sans',sans-serif", letterSpacing: 0.8,
-                  background: score.pct >= tier.min && (
-                    (tier.min === 0 && score.pct < 25) ||
-                    (tier.min === 25 && score.pct < 45) ||
-                    (tier.min === 45 && score.pct < 60) ||
-                    (tier.min === 60 && score.pct < 75) ||
-                    (tier.min === 75 && score.pct < 90) ||
-                    tier.min === 90
-                  ) ? tier.color : "#f0ebe3",
-                  color: score.pct >= tier.min && (
-                    (tier.min === 0 && score.pct < 25) ||
-                    (tier.min === 25 && score.pct < 45) ||
-                    (tier.min === 45 && score.pct < 60) ||
-                    (tier.min === 60 && score.pct < 75) ||
-                    (tier.min === 75 && score.pct < 90) ||
-                    tier.min === 90
-                  ) ? "#fff" : "#a1a1aa",
-                }}>{tier.label}</div>
+          {/* Focus */}
+          <div style={{marginTop:14,padding:14,background:"#f7f4ef",borderRadius:10}}>
+            <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:8}}>⚡ Today's #1 Non-Negotiable</div>
+            <div style={{display:"flex",gap:8}}>
+              <input value={focusIn} onChange={e=>setFocusIn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveFocus()} placeholder="What MUST get done today?"/>
+              <button className="btn btn-g btn-s" onClick={saveFocus} style={{whiteSpace:"nowrap"}}>Save</button>
+            </div>
+            {focus&&<p style={{marginTop:8,fontSize:13,fontWeight:700,color:"#1c3d2e"}}>→ {focus}</p>}
+          </div>
+        </div>
+
+        {/* Daily Briefing */}
+        <div className="card">
+          <div style={{background:"linear-gradient(135deg,#1a2f4a,#0f1e35)",padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div className="eyebrow" style={{color:"#93c5fd",marginBottom:4}}>📋 Daily Briefing</div>
+                <div className="title" style={{fontSize:15,color:"#fff"}}>
+                  {briefing?`${briefing.dayOfWeek}${isWknd?" — Weekend 🏖️":" — "+activeChalKeys.length+" Challenges"}`:"Loading..."}
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {briefing&&<span style={{fontSize:11,fontWeight:700,color:"#93c5fd"}}>Target: {briefing.targetScore}</span>}
+                <button onClick={()=>fetchBriefing(true)} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:11,fontWeight:700}}>{briefLoad?"...":"↺"}</button>
+              </div>
+            </div>
+          </div>
+          <div className="cp">
+            {briefLoad&&!briefing?(
+              <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 0"}}>
+                <div className="spin spin-d"/><span style={{fontSize:13,color:"#a1a1aa"}}>Generating challenges...</span>
+              </div>
+            ):briefing?(
+              <>
+                <div style={{background:"#f0f7ff",borderRadius:10,padding:"12px 14px",borderLeft:"4px solid #1e3a5f",marginBottom:14}}>
+                  <p style={{fontSize:13,lineHeight:1.7,color:"#18181b",fontWeight:500}}>{briefing.coachNote}</p>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {[...(!isWknd?[{key:"work",icon:"💼",label:"WORK",color:"#1c3d2e",bg:"#f0fdf4",data:briefing.work}]:[]),{key:"personal",icon:"🏠",label:"PERSONAL",color:"#7c3d00",bg:"#fff7ed",data:briefing.personal},{key:"financial",icon:"📈",label:"FINANCIAL",color:"#1e3a5f",bg:"#eff6ff",data:briefing.financial}].map(item=>{
+                    const isDone=briefing.challengesCompleted?.[item.key];
+                    return(
+                      <div key={item.key} style={{background:isDone?item.bg:"#fafaf9",borderRadius:12,padding:"12px 14px",border:"1.5px solid",borderColor:isDone?item.color:"#e8e2d9",transition:"all .2s"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                          <div style={{flex:1}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                              <span style={{fontSize:13}}>{item.icon}</span>
+                              <span className="eyebrow" style={{color:item.color,fontSize:9}}>{item.label}</span>
+                              <span style={{fontSize:10,fontWeight:700,color:item.color,background:item.bg,padding:"2px 6px",borderRadius:4}}>+{item.data?.points} pts</span>
+                              {isDone&&<span style={{fontSize:11,fontWeight:800,color:"#16a34a"}}>✓ DONE</span>}
+                            </div>
+                            <p style={{fontSize:13,fontWeight:600,color:isDone?"#a1a1aa":"#18181b",lineHeight:1.5,textDecoration:isDone?"line-through":"none"}}>{item.data?.challenge}</p>
+                            {!isDone&&item.data?.why&&<p style={{fontSize:11,color:"#a1a1aa",marginTop:4,fontStyle:"italic"}}>→ {item.data.why}</p>}
+                          </div>
+                          {!isDone&&<button onClick={()=>completeChallenge(item.key)} style={{background:item.color,color:"#fff",border:"none",borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Done ✓</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{marginTop:12,padding:"10px 14px",background:"#f7f4ef",borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"#52525b"}}>{chalDone}/{activeChalKeys.length} challenges complete</span>
+                  <span style={{fontSize:12,color:"#1c3d2e",fontWeight:700}}>
+                    {(briefing.challengesCompleted?.work&&!isWknd?briefing.work?.points||0:0)+(briefing.challengesCompleted?.personal?briefing.personal?.points||0:0)+(briefing.challengesCompleted?.financial?briefing.financial?.points||0:0)} pts earned
+                  </span>
+                </div>
+              </>
+            ):(
+              <div style={{textAlign:"center",padding:"16px 0"}}>
+                <button className="btn btn-g" onClick={()=>fetchBriefing()}>Generate Today's Briefing</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Score Panel */}
+        <div className="card" style={{border:`2px solid ${sc.tier.c}`}}>
+          <div style={{background:sc.tier.bg,padding:"16px 18px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div className="eyebrow" style={{color:sc.tier.c,marginBottom:6}}>🏆 Daily Performance Score</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+                  <span className="title" style={{fontSize:"clamp(44px,11vw,60px)",color:sc.tier.c}}>{sc.pct}</span>
+                  <span style={{fontSize:20,color:sc.tier.c,opacity:.6,fontWeight:700}}>/100</span>
+                </div>
+                <div style={{fontSize:11,fontWeight:800,letterSpacing:2,color:sc.tier.c,marginTop:2}}>{sc.tier.l}</div>
+              </div>
+              <div>
+                <div className="mono" style={{fontSize:11,color:sc.tier.c,opacity:.7,marginBottom:4,textAlign:"right"}}>{sc.earned}/{sc.max} pts</div>
+                <svg width="62" height="62" viewBox="0 0 62 62">
+                  <circle cx="31" cy="31" r="25" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="5"/>
+                  <circle cx="31" cy="31" r="25" fill="none" stroke={sc.tier.c} strokeWidth="5"
+                    strokeDasharray={2*Math.PI*25} strokeDashoffset={2*Math.PI*25*(1-sc.pct/100)}
+                    strokeLinecap="round" transform="rotate(-90 31 31)" style={{transition:"stroke-dashoffset .8s"}}/>
+                  <text x="31" y="35" textAnchor="middle" fill={sc.tier.c} fontSize="13" fontWeight="900" fontFamily="'Fraunces',serif">{sc.pct}%</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown — TASK COUNTS (not raw points) */}
+          <div style={{padding:"14px 18px",background:"#fff"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:10,marginBottom:14}}>
+              {sc.breakdown.map(item=>(
+                <div key={item.l}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                    <span className="eyebrow" style={{color:"#a1a1aa",fontSize:9}}>{item.l}</span>
+                    <span className="mono" style={{fontSize:10,color:item.c}}>{item.cnt}/{item.tot}</span>
+                  </div>
+                  <div className="bar"><div className="bar-f" style={{width:item.pct+"%",background:item.c}}/></div>
+                  <div style={{fontSize:9,color:"#a1a1aa",marginTop:2}}>{item.pts} pts</div>
+                </div>
               ))}
             </div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
+              <span className="eyebrow" style={{color:"#a1a1aa",marginRight:4,fontSize:9}}>TARGET →</span>
+              {TIERS.map((t,i)=>{const next=TIERS[i+1];const isOn=sc.pct>=t.m&&(!next||sc.pct<next.m);return(<span key={t.l} className={`tier-i${isOn?" on":""}`} style={isOn?{background:t.c}:{}}>{t.l}</span>);})}
+            </div>
           </div>
 
-          {/* Coach Message */}
-          <div style={{ padding: "clamp(12px,3vw,16px) clamp(14px,4vw,22px)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontFamily: "'Nunito Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "#71717a", textTransform: "uppercase" }}>🧠 Coach Feedback</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {coachLastUpdated && <span style={{ fontSize: 10, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>{coachLastUpdated}</span>}
-                <button
-                  onClick={generateCoachMessage}
-                  style={{ background: "#f7f4ef", border: "1px solid #ede8e0", borderRadius: 6, padding: "4px 10px", color: "#52525b", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif" }}
-                >
-                  {coachLoading ? "..." : "↺ Refresh"}
-                </button>
+          {/* Coach */}
+          <div style={{padding:"14px 18px",borderTop:"1px solid #f0ebe3"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <span className="eyebrow" style={{color:"#a1a1aa"}}>🧠 Coach Feedback</span>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {coachTime&&<span style={{fontSize:10,color:"#a1a1aa"}}>{coachTime}</span>}
+                <button onClick={genCoach} className="btn btn-o btn-s">{coachLoad?"...":"↺ Refresh"}</button>
               </div>
             </div>
-
-            {coachLoading ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
-                <div className="spinner" style={{ borderTopColor: "#1c3d2e", borderColor: "#ede8e0" }} />
-                <span style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif" }}>Analyzing your score...</span>
-              </div>
-            ) : coachMessage ? (
-              <div style={{ background: "#f7f4ef", borderRadius: 10, padding: "14px 16px", borderLeft: "4px solid " + score.tier.color }}>
-                <p style={{ fontSize: "clamp(13px,2.8vw,14px)", lineHeight: 1.75, color: "#18181b", fontFamily: "'Nunito Sans',sans-serif", fontWeight: 500 }}>
-                  {coachMessage}
-                </p>
-              </div>
-            ) : (
-              <p style={{ fontSize: 13, color: "#a1a1aa", fontFamily: "'Nunito Sans',sans-serif", padding: "8px 0" }}>Complete a task to get your first coaching message.</p>
-            )}
-
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              {[
-                { label: "💬 Talk to coach", action: () => { setChatInput("Give me specific coaching on my score and how to improve it today"); setTimeout(() => document.querySelector("input[placeholder*='Type anything']")?.focus(), 100); } },
-                { label: "🏆 Log a win", action: () => setTimeout(() => document.querySelector("input[placeholder*='did you do right']")?.focus(), 100) },
-                { label: "↺ New message", action: generateCoachMessage },
-              ].map(btn => (
-                <button key={btn.label} onClick={btn.action} style={{
-                  background: "#fff", border: "1.5px solid #ede8e0", borderRadius: 20,
-                  padding: "6px 14px", fontSize: 12, fontWeight: 600, color: "#52525b",
-                  cursor: "pointer", fontFamily: "'Nunito Sans',sans-serif"
-                }}>{btn.label}</button>
+            {coachLoad&&!coach?(<div style={{display:"flex",gap:8,alignItems:"center"}}><div className="spin spin-d"/><span style={{fontSize:13,color:"#a1a1aa"}}>Analyzing score...</span></div>):
+            coach?(<div style={{background:"#f7f4ef",borderRadius:10,padding:"12px 14px",borderLeft:`4px solid ${sc.tier.c}`}}><p style={{fontSize:14,lineHeight:1.75,color:"#18181b",fontWeight:500}}>{coach}</p></div>):null}
+            <div className="qpr">
+              {["💬 Talk to coach","↺ New message"].map((l,i)=>(
+                <button key={l} className="qp" onClick={()=>{if(i===0)setChatIn("Coach me on my current score and how to improve");if(i===1)genCoach();}}>{l}</button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Goals Tabs */}
-        <div className="card" style={{ padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        {/* Goal Tracker */}
+        <div className="card cpx">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div>
-              <div className="label" style={{ color: "#71717a", marginBottom: 3 }}>📋 GOAL TRACKER</div>
-              <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b" }}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)} Goals
-              </h2>
+              <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:4}}>📋 Goal Tracker</div>
+              <h2 className="title" style={{fontSize:"clamp(16px,4vw,20px)"}}>{effTab.charAt(0).toUpperCase()+effTab.slice(1)} Goals{isWknd&&<span className="wknd" style={{marginLeft:8,fontSize:11}}>weekend</span>}</h2>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "clamp(17px,4.5vw,22px)", fontWeight: 900, color: "#1c3d2e" }}>{pct}%</div>
-              <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>complete</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:"clamp(20px,5vw,26px)",fontWeight:900,color:tabC}}>{pct}%</div>
+              <div style={{fontSize:11,color:"#a1a1aa"}}>{doneCnt}/{tasks.length}</div>
             </div>
           </div>
-
-          <div className="tabs" style={{ marginBottom: 16 }}>
-            {(isWeekend ? ["personal","financial"] : ["work","personal","financial"]).map(t => (
-              <button key={t} className={`tab${effectiveTab === t ? " active" : ""}`} onClick={() => setTab(t)}>
-                {t === "work" ? "💼" : t === "personal" ? "🏠" : "📈"} {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-            {isWeekend && (
-              <div style={{ padding: "7px 10px", background: "#fff7ed", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "#c2410c", display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                🏖️ Weekend mode
-              </div>
-            )}
+          <div className="tabs" style={{marginBottom:14}}>
+            {activeTabs.map(t=>(<button key={t} className={`tab${effTab===t?" on":""}`} onClick={()=>setTab(t)}>{t==="work"?"💼":t==="personal"?"🏠":"📈"} {t.charAt(0).toUpperCase()+t.slice(1)}</button>))}
           </div>
-
-          <div className="progress-bar" style={{ marginBottom: 16 }}>
-            <div className="progress-fill" style={{ width: pct + "%", background: effectiveTab === "work" ? "#1c3d2e" : effectiveTab === "personal" ? "#7c3d00" : "#1e3a5f" }} />
-          </div>
-
-          {tasks.map(task => (
-            <div key={task.id} className="task-row" onClick={() => toggleTask(task.id)}>
-              <div className={`check-circle${done[task.id] ? " done" : ""}`}>
-                {done[task.id] && <span style={{ fontSize: 12 }}>✓</span>}
-              </div>
-              <div className="priority-dot" style={{ background: PRI_COLOR[task.priority] }} />
-              <span style={{
-                flex: 1, fontSize: "clamp(13px,2.8vw,14px)", lineHeight: 1.5, color: "#18181b",
-                textDecoration: done[task.id] ? "line-through" : "none",
-                opacity: done[task.id] ? 0.5 : 1
-              }}>
-                {task.text}
-              </span>
+          <div className="bar" style={{marginBottom:16}}><div className="bar-f" style={{width:pct+"%",background:tabC}}/></div>
+          {tasks.map(task=>(
+            <div key={task.id} className="task-row" onClick={()=>toggleTask(task.id)}>
+              <div className={`chk${done[task.id]?" on":""}`}>{done[task.id]&&<span style={{fontSize:12,color:"#fff"}}>✓</span>}</div>
+              <div style={{width:6,height:6,borderRadius:"50%",background:task.p==="high"?"#dc2626":task.p==="medium"?"#d97706":"#16a34a",flexShrink:0,marginTop:6}}/>
+              <span style={{flex:1,fontSize:14,lineHeight:1.5,color:"#18181b",textDecoration:done[task.id]?"line-through":"none",opacity:done[task.id]?.5:1}}>{task.text}</span>
             </div>
           ))}
         </div>
 
         {/* Habits + Confidence */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-          {/* Habits */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>🔥 DAILY HABITS</div>
-            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 14 }}>
-              {habitsDone}/{habits.length} done today
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {habits.map(h => (
-                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div className={`habit-ring${h.done ? " done" : ""}`} onClick={() => toggleHabit(h.id)}>
-                    {h.icon}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#18181b" }}>{h.name}</div>
-                    <div style={{ fontSize: 11, color: "#a1a1aa" }}>{h.streak} day streak</div>
-                  </div>
-                  {h.done && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>✓</span>}
-                </div>
-              ))}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div className="card cp">
+            <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>🔥 Habits</div>
+            <div style={{fontSize:16,fontWeight:900,color:"#1c3d2e",marginBottom:14}}>{habits.filter(h=>h.done).length}/{habits.length}<span style={{fontSize:11,fontWeight:600,color:"#a1a1aa"}}> today</span></div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {habits.map(h=>(<div key={h.id} style={{display:"flex",alignItems:"center",gap:10}}>
+                <button className={`hring${h.done?" on":""}`} onClick={()=>toggleHabit(h.id)}>{h.icon}</button>
+                <div><div style={{fontSize:12,fontWeight:700}}>{h.name}</div><div style={{fontSize:10,color:"#a1a1aa"}}>{h.streak}d</div></div>
+              </div>))}
             </div>
           </div>
-
-          {/* Confidence */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>💪 CONFIDENCE</div>
-            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 6 }}>How do you feel?</h2>
-            <p style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 14 }}>Rate yourself honestly, not perfectly.</p>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                <button key={n} onClick={() => setConfidence(n)} style={{
-                  width: 36, height: 36, borderRadius: 8, border: "1.5px solid",
-                  borderColor: confidence === n ? "#1c3d2e" : "#ede8e0",
-                  background: confidence === n ? "#1c3d2e" : "#fff",
-                  color: confidence === n ? "#fff" : "#52525b",
-                  fontWeight: 700, fontSize: 13, cursor: "pointer"
-                }}>{n}</button>
-              ))}
+          <div className="card cp">
+            <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>💪 Confidence</div>
+            <p style={{fontSize:11,color:"#a1a1aa",marginBottom:12,lineHeight:1.5}}>Rate yourself honestly.</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginBottom:12}}>
+              {[1,2,3,4,5,6,7,8,9,10].map(n=>(<button key={n} onClick={()=>setConf(n)} style={{padding:"8px 0",borderRadius:7,border:"1.5px solid",borderColor:conf===n?"#1c3d2e":"#e8e2d9",background:conf===n?"#1c3d2e":"#fff",color:conf===n?"#fff":"#52525b",fontWeight:700,fontSize:13,cursor:"pointer"}}>{n}</button>))}
             </div>
-            <div style={{ fontSize: 13, color: "#52525b", marginBottom: 12 }}>
-              {confidence <= 3 ? "Struggling today — that's real. Name one thing you can control." :
-               confidence <= 6 ? "Middle ground. Push through — momentum builds." :
-               "Strong. Use this energy to tackle the hardest thing first."}
-            </div>
-            <button className="btn btn-primary" onClick={saveConfidence} style={{ width: "100%", fontSize: 13 }}>
-              {confSaved ? "Saved ✓" : `Log ${confidence}/10`}
-            </button>
+            <p style={{fontSize:11,color:"#52525b",marginBottom:10,lineHeight:1.5}}>{conf<=3?"Struggling — name one thing you control.":conf<=6?"Middle ground. Push through.":"Strong. Tackle hardest first."}</p>
+            <button className="btn btn-g" onClick={saveConf} style={{width:"100%",fontSize:12}}>{confSaved?"Saved ✓":`Log ${conf}/10`}</button>
           </div>
         </div>
 
-        {/* Check-in + Win Log */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-          {/* Check-in */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>📝 CHECK-IN LOG</div>
-            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 12 }}>Quick Note</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-              <textarea
-                value={checkinNote}
-                onChange={e => setCheckinNote(e.target.value)}
-                placeholder="What's happening right now? Status, blocker, or thought."
-                rows={3}
-                style={{ resize: "none" }}
-              />
-              <button className="btn btn-primary" onClick={addCheckin} style={{ fontSize: 13 }}>Log Check-in</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 160, overflowY: "auto" }}>
-              {checkins.slice(0, 5).map(c => (
-                <div key={c.id} style={{ padding: "8px 10px", background: "#f7f4ef", borderRadius: 8 }}>
-                  <p style={{ fontSize: 13, color: "#18181b", lineHeight: 1.4 }}>{c.note}</p>
-                  <p style={{ fontSize: 10, color: "#a1a1aa", marginTop: 4 }}>{c.date} · {c.time}</p>
-                </div>
-              ))}
-              {checkins.length === 0 && <p style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center", padding: "12px 0" }}>No check-ins yet today.</p>}
+        {/* Check-in + Wins */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div className="card cp">
+            <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>📝 Check-In</div>
+            <textarea value={ciNote} onChange={e=>setCiNote(e.target.value)} placeholder="Status, blocker, or thought." rows={3} style={{resize:"none",marginBottom:8,fontSize:13}}/>
+            <button className="btn btn-g" onClick={addCi} style={{width:"100%",fontSize:12}}>Log</button>
+            <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6,maxHeight:110,overflowY:"auto"}}>
+              {checkins.slice(0,3).map(c=>(<div key={c.id} style={{padding:"8px 10px",background:"#f7f4ef",borderRadius:8}}><p style={{fontSize:12,color:"#18181b",lineHeight:1.4}}>{c.note}</p><p style={{fontSize:10,color:"#a1a1aa",marginTop:3}}>{c.date} · {c.time}</p></div>))}
+              {!checkins.length&&<p style={{fontSize:11,color:"#a1a1aa",textAlign:"center"}}>No check-ins yet.</p>}
             </div>
           </div>
-
-          {/* Win Log */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>🏆 WIN LOG</div>
-            <h2 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#18181b", marginBottom: 12 }}>Log a Win</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-              <input
-                value={winInput}
-                onChange={e => setWinInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addWin()}
-                placeholder="What did you do right? Small or big."
-              />
-              <button className="btn btn-primary" onClick={addWin} style={{ fontSize: 13 }}>Log Win</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 160, overflowY: "auto" }}>
-              {wins.slice(0, 6).map(w => (
-                <div key={w.id} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: "clamp(13px,2.8vw,14px)", marginTop: 1 }}>⭐</span>
-                  <div>
-                    <p style={{ fontSize: 13, color: "#18181b", lineHeight: 1.4 }}>{w.text}</p>
-                    <p style={{ fontSize: 10, color: "#a1a1aa" }}>{w.date}</p>
-                  </div>
-                </div>
-              ))}
-              {wins.length === 0 && <p style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center", padding: "12px 0" }}>No wins logged yet — add one.</p>}
+          <div className="card cp">
+            <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>🏆 Wins</div>
+            <input value={winIn} onChange={e=>setWinIn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addWin()} placeholder="What did you do right?" style={{marginBottom:8,fontSize:13}}/>
+            <button className="btn btn-g" onClick={addWin} style={{width:"100%",fontSize:12,marginBottom:10}}>Log Win</button>
+            <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:110,overflowY:"auto"}}>
+              {wins.slice(0,4).map(w=>(<div key={w.id} style={{display:"flex",gap:8}}><span>⭐</span><div><p style={{fontSize:12,lineHeight:1.4}}>{w.text}</p><p style={{fontSize:10,color:"#a1a1aa"}}>{w.date}</p></div></div>))}
+              {!wins.length&&<p style={{fontSize:11,color:"#a1a1aa",textAlign:"center"}}>No wins yet.</p>}
             </div>
           </div>
         </div>
 
-        {/* Financial Panel */}
-        <div className="card" style={{ padding: 18 }}>
-          <div className="label" style={{ color: "#1e3a5f", marginBottom: 6 }}>📈 FINANCIAL TRACKER</div>
-          <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b", marginBottom: 16 }}>Budget Snapshot</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
-            {[
-              { key: "income", label: "Monthly Income", placeholder: "e.g. 5000" },
-              { key: "fixed", label: "Fixed Costs", placeholder: "rent, car, loans..." },
-              { key: "variable", label: "Variable Costs", placeholder: "food, gas, misc..." },
-              { key: "target", label: "Stability Target", placeholder: "what you need to feel safe" },
-            ].map(f => (
-              <div key={f.key}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#71717a", letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 4 }}>{f.label}</label>
-                <input
-                  value={budget[f.key]}
-                  onChange={e => { const next = { ...budget, [f.key]: e.target.value }; setBudget(next); lsSet('v3_budget', next); }}
-                  placeholder={f.placeholder}
-                />
-              </div>
+        {/* Financial */}
+        <div className="card cpx">
+          <div className="eyebrow" style={{color:"#1e3a5f",marginBottom:6}}>📈 Financial Tracker</div>
+          <h2 className="title" style={{fontSize:"clamp(16px,4vw,20px)",marginBottom:16}}>Budget Snapshot</h2>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+            {[{k:"income",l:"Monthly Income",ph:"e.g. 5000"},{k:"fixed",l:"Fixed Costs",ph:"rent, loans..."},{k:"variable",l:"Variable",ph:"food, gas..."},{k:"target",l:"Target",ph:"stability #"}].map(f=>(
+              <div key={f.k}><label style={{fontSize:10,fontWeight:700,color:"#a1a1aa",letterSpacing:1,textTransform:"uppercase",display:"block",marginBottom:4}}>{f.l}</label>
+              <input value={budget[f.k]} onChange={e=>{const n={...budget,[f.k]:e.target.value};setBudget(n);ls.set("v3_budget",n);}} placeholder={f.ph} style={{fontSize:13}}/></div>
             ))}
           </div>
-          {(budget.income || budget.fixed) && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-              {[
-                { label: "Monthly Spend", value: "$" + (budgetGap.spend || 0).toLocaleString(), color: "#dc2626" },
-                { label: "Left Over", value: "$" + (budgetGap.left || 0).toLocaleString(), color: budgetGap.left >= 0 ? "#16a34a" : "#dc2626" },
-                { label: "Gap to Target", value: budgetGap.gap > 0 ? "-$" + budgetGap.gap.toLocaleString() : "✓ On track", color: budgetGap.gap > 0 ? "#dc2626" : "#16a34a" },
-              ].map(s => (
-                <div key={s.label} style={{ padding: 12, background: "#f7f4ef", borderRadius: 10, textAlign: "center" }}>
-                  <div style={{ fontSize: "clamp(14px,3.8vw,18px)", fontWeight: 900, color: s.color }}>{s.value}</div>
-                  <div className="label" style={{ color: "#a1a1aa", fontSize: 9 }}>{s.label}</div>
+          {(budget.income||budget.fixed)&&(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+              {[{l:"Spend",v:"$"+(bCalc.spend||0).toLocaleString(),c:"#dc2626"},{l:"Left Over",v:"$"+(bCalc.left||0).toLocaleString(),c:bCalc.left>=0?"#16a34a":"#dc2626"},{l:"Gap",v:bCalc.gap>0?"-$"+bCalc.gap.toLocaleString():"✓ OK",c:bCalc.gap>0?"#dc2626":"#16a34a"}].map(s=>(
+                <div key={s.l} style={{padding:10,background:"#f7f4ef",borderRadius:10,textAlign:"center"}}>
+                  <div style={{fontSize:"clamp(14px,3.5vw,18px)",fontWeight:900,color:s.c}}>{s.v}</div>
+                  <div className="eyebrow" style={{color:"#a1a1aa",fontSize:9,marginTop:3}}>{s.l}</div>
                 </div>
               ))}
             </div>
           )}
-
-          {/* Savings Goals */}
-          <div style={{ marginTop: 16 }}>
-            <div className="label" style={{ color: "#71717a", marginBottom: 10 }}>SAVINGS GOALS</div>
-            {savings.map(sg => {
-              const pct = Math.min(100, Math.round((sg.current / sg.target) * 100));
-              return (
-                <div key={sg.id} style={{ marginBottom: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#18181b" }}>{sg.name}</span>
-                    <span style={{ fontSize: 12, color: "#52525b" }}>${sg.current.toLocaleString()} / ${sg.target.toLocaleString()}</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: pct + "%", background: "#1e3a5f" }} />
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                    <input
-                      placeholder="Update current amount"
-                      style={{ fontSize: 12, padding: "6px 10px" }}
-                      onBlur={e => {
-                        const v = parseFloat(e.target.value);
-                        if (!isNaN(v)) setSavings(prev => prev.map(s => s.id === sg.id ? { ...s, current: v } : s));
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>Savings Goals</div>
+          {savings.map(sg=>{const p=Math.min(100,Math.round((sg.current/sg.target)*100));return(
+            <div key={sg.id} style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontSize:13,fontWeight:600}}>{sg.name}</span>
+                <span style={{fontSize:12,color:"#52525b"}}>${sg.current.toLocaleString()}/${sg.target.toLocaleString()}</span>
+              </div>
+              <div className="bar"><div className="bar-f" style={{width:p+"%",background:"#1e3a5f"}}/></div>
+              <input placeholder="Update current amount" style={{marginTop:6,fontSize:12,padding:"6px 10px"}} onBlur={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){const n=savings.map(s=>s.id===sg.id?{...s,current:v}:s);setSavings(n);ls.set("v3_sav",n);e.target.value="";}}}/>
+            </div>
+          );})}
         </div>
 
-        {/* AI Coach Chat */}
-        <div className="card" style={{ padding: 18 }}>
-          <div className="label" style={{ color: "#1c3d2e", marginBottom: 6 }}>🤖 AI LIFE COACH</div>
-          <h2 className="heading" style={{ fontSize: "clamp(15px,4vw,19px)", color: "#18181b", marginBottom: 4 }}>Talk to Your Coach</h2>
-          <p style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 14 }}>Ask anything. Work stress, decisions, confidence, finances. Direct, honest coaching.</p>
-
-          <div style={{ height: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14, padding: "4px 0" }}>
-            {chatMessages.map((m, i) => (
-              <div key={i} className={m.role === "user" ? "chat-bubble-user" : "chat-bubble-ai"}>
-                {m.content}
-              </div>
-            ))}
-            {chatLoading && (
-              <div className="chat-bubble-ai" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="spinner" style={{ borderTopColor: "#1c3d2e", borderColor: "#ede8e0" }} />
-                <span style={{ fontSize: 12, color: "#a1a1aa" }}>Thinking...</span>
-              </div>
-            )}
-            <div ref={chatEndRef} />
+        {/* AI Chat */}
+        <div className="card cpx">
+          <div className="eyebrow" style={{color:"#1c3d2e",marginBottom:6}}>🤖 AI Coach Chat</div>
+          <h2 className="title" style={{fontSize:"clamp(16px,4vw,20px)",marginBottom:4}}>Talk to Your Coach</h2>
+          <p style={{fontSize:12,color:"#a1a1aa",marginBottom:14}}>Work stress, decisions, confidence, finances. Direct and honest.</p>
+          <div className="chat-box" style={{marginBottom:12}}>
+            {msgs.map((m,i)=>(<div key={i} className={m.r==="user"?"bm":"ba"}>{m.t}</div>))}
+            {chatLoad&&<div className="ba" style={{display:"flex",gap:8,alignItems:"center"}}><div className="spin spin-d"/><span style={{fontSize:12,color:"#a1a1aa"}}>Thinking...</span></div>}
+            <div ref={chatEnd}/>
           </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
-              placeholder="Type anything — stress, goals, decisions, or just how today went..."
-              style={{ flex: 1 }}
-            />
-            <button
-              className="btn btn-primary"
-              onClick={sendChat}
-              disabled={chatLoading || !chatInput.trim()}
-              style={{ opacity: chatLoading || !chatInput.trim() ? 0.6 : 1, minWidth: 70 }}
-            >
-              {chatLoading ? <span className="spinner" /> : "Send"}
-            </button>
+          <div style={{display:"flex",gap:8}}>
+            <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendChat()} placeholder="Type anything..."/>
+            <button className="btn btn-g" onClick={sendChat} disabled={chatLoad||!chatIn.trim()} style={{opacity:chatLoad||!chatIn.trim()?.5:1,minWidth:64}}>{chatLoad?<span className="spin"/>:"Send"}</button>
           </div>
-
-          {/* Quick prompts */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-            {[
-              "I'm feeling stressed about work",
-              "Help me prioritize today",
-              "I'm avoiding something important",
-              "Financial pressure is overwhelming me"
-            ].map(prompt => (
-              <button
-                key={prompt}
-                onClick={() => { setChatInput(prompt); }}
-                style={{
-                  background: "#f7f4ef", border: "1px solid #ede8e0", borderRadius: 20,
-                  padding: "5px 12px", fontSize: 11, fontWeight: 600, color: "#52525b",
-                  cursor: "pointer", fontFamily: "'Nunito Sans', sans-serif"
-                }}
-              >
-                {prompt}
-              </button>
-            ))}
+          <div className="qpr">
+            {["I'm stressed about work","Help me prioritize","I'm avoiding something","Financial pressure"].map(p=>(<button key={p} className="qp" onClick={()=>setChatIn(p)}>{p}</button>))}
           </div>
         </div>
       </div>
 
-      {/* ── SIDEBAR ── */}
-      <div className="sidebar">
-
-        {/* Next Check-in */}
-        <div className="card" style={{ padding: 16, background: "linear-gradient(135deg,#1c3d2e,#16332a)" }}>
-          <div className="label" style={{ color: "#a8d4b0", marginBottom: 6 }}>⏱ NEXT CHECK-IN</div>
-          <h3 className="heading" style={{ fontSize: "clamp(14px,3.8vw,18px)", color: "#fff", marginBottom: 4 }}>
-            {(() => {
-              const now = new Date();
-              const h = now.getHours(), m = now.getMinutes();
-              const nowMins = h * 60 + m;
-              const pts = [{ mins: 5 * 60, label: "Gym Activation" }, { mins: 8 * 60, label: "Morning Intention" }, { mins: 13 * 60, label: "Midday Pulse" }, { mins: 20 * 60, label: "Evening Review" }, { mins: 22 * 60, label: "Pre-Sleep" }];
-              const next = pts.find(p => p.mins > nowMins) || pts[0];
-              const diff = next.mins > nowMins ? next.mins - nowMins : next.mins + 1440 - nowMins;
-              return `${next.label} · ${diff >= 60 ? Math.floor(diff / 60) + "h " + (diff % 60) + "m" : diff + "m"}`;
-            })()}
-          </h3>
-          <p style={{ fontSize: 12, color: "#a8d4b0" }}>Via Telegram bot · 5 touchpoints daily</p>
+      {/* Sidebar */}
+      <div className="sc">
+        {/* Next check-in */}
+        <div className="card" style={{background:"linear-gradient(135deg,#1c3d2e,#163325)",padding:16}}>
+          <div className="eyebrow" style={{color:"#a8d4b0",marginBottom:6}}>⏱ Next Check-In</div>
+          <div className="title" style={{fontSize:17,color:"#fff",marginBottom:4}}>
+            {(()=>{const h=new Date().getHours(),m=new Date().getMinutes(),now=h*60+m;const pts=[{m:5*60,l:"Gym"},{m:8*60,l:"Morning Briefing"},{m:13*60,l:"Midday Pulse"},{m:20*60,l:"Evening Review"},{m:22*60,l:"Pre-Sleep"}];const next=pts.find(p=>p.m>now)||pts[0];const diff=next.m>now?next.m-now:next.m+1440-now;return `${next.l} · ${diff>=60?Math.floor(diff/60)+"h "+(diff%60)+"m":diff+"m"}`;})()}
+          </div>
+          <p style={{fontSize:12,color:"#a8d4b0"}}>Via Telegram · 5 touchpoints daily</p>
         </div>
 
-        {/* Telegram Tasks */}
-        <div className="card" style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div>
-              <div className="label" style={{ color: "#0088cc", marginBottom: 3 }}>📱 TELEGRAM TASKS</div>
-              <h3 className="heading" style={{ fontSize: "clamp(13px,3.2vw,16px)", color: "#18181b" }}>From Your Bot</h3>
-            </div>
-            <button
-              onClick={fetchTgTodos}
-              style={{ background: "none", border: "none", fontSize: 11, fontWeight: 700, color: "#0088cc", cursor: "pointer", fontFamily: "'Nunito Sans', sans-serif", letterSpacing: 1 }}
-            >
-              {tgLoading ? "..." : "REFRESH →"}
-            </button>
+        {/* TG Todos */}
+        <div className="card cp">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div><div className="eyebrow" style={{color:"#0088cc",marginBottom:3}}>📱 Telegram Tasks</div><h3 style={{fontSize:15,fontWeight:800}}>From Your Bot</h3></div>
+            <button onClick={fetchTg} style={{background:"none",border:"none",fontSize:11,fontWeight:700,color:"#0088cc",cursor:"pointer"}}>{tgLoad?"...":"REFRESH →"}</button>
           </div>
-
-          {pendingTg.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "14px 0" }}>
-              <p style={{ fontSize: 13, color: "#a1a1aa" }}>No tasks yet.</p>
-              <p style={{ fontSize: 11, color: "#c4bdb5", marginTop: 4, fontStyle: "italic" }}>"add [task] to my [category] list"</p>
+          {tgTodos.filter(t=>!t.done).length===0?(<div style={{textAlign:"center",padding:"12px 0"}}><p style={{fontSize:13,color:"#a1a1aa"}}>No tasks yet.</p><p style={{fontSize:11,color:"#c4bdb5",marginTop:4,fontStyle:"italic"}}>"add [task] to my list"</p></div>):
+          tgTodos.filter(t=>!t.done).slice(0,8).map(todo=>(<div key={todo.id} className="tgr">
+            <button className="tgc" onClick={()=>markTgDone(todo.id)}/>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:13,fontWeight:500,lineHeight:1.4}}>{todo.text}</p>
+              <span style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:12,fontSize:10,fontWeight:700,border:`1px solid ${CAT_C[todo.category]||"#3f3f46"}`,color:CAT_C[todo.category]||"#3f3f46",marginTop:4}}>{CAT_E[todo.category]||"📌"} {todo.category}</span>
             </div>
-          ) : (
-            pendingTg.slice(0, 8).map(todo => (
-              <div key={todo.id} className="tg-todo-item">
-                <button
-                  onClick={() => markTgDone(todo.id)}
-                  style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid #d0c9be", background: "transparent", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: "#18181b", lineHeight: 1.4, wordBreak: "break-word" }}>{todo.text}</p>
-                  <span className="chip" style={{ marginTop: 4, fontSize: 10, color: CAT_COLOR[todo.category] || "#3f3f46", borderColor: CAT_COLOR[todo.category] || "#3f3f46" }}>
-                    {CAT_EMOJI[todo.category] || "📌"} {todo.category}
-                  </span>
-                </div>
-                <button
-                  onClick={() => deleteTg(todo.id)}
-                  style={{ background: "none", border: "none", color: "#d0c9be", cursor: "pointer", fontSize: "clamp(14px,3.8vw,18px)", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
-                >×</button>
-              </div>
-            ))
-          )}
-
-          {completedTg.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f5f0ea" }}>
-              <div className="label" style={{ color: "#a1a1aa", marginBottom: 6, fontSize: 9 }}>COMPLETED</div>
-              {completedTg.map(t => (
-                <p key={t.id} style={{ fontSize: 12, color: "#a1a1aa", textDecoration: "line-through", padding: "2px 0" }}>{t.text}</p>
-              ))}
-            </div>
-          )}
+            <button onClick={()=>delTg(todo.id)} style={{background:"none",border:"none",color:"#ddd",cursor:"pointer",fontSize:18,lineHeight:1,flexShrink:0}}>×</button>
+          </div>))}
+          {tgTodos.filter(t=>t.done).slice(0,3).length>0&&(<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #f5f0ea"}}><div className="eyebrow" style={{color:"#a1a1aa",marginBottom:6,fontSize:9}}>Completed</div>{tgTodos.filter(t=>t.done).slice(0,3).map(t=>(<p key={t.id} style={{fontSize:12,color:"#a1a1aa",textDecoration:"line-through",padding:"2px 0"}}>{t.text}</p>))}</div>)}
         </div>
 
-        {/* Live Coaching Panel */}
-        <div className="card" style={{ padding: 16, background: "linear-gradient(135deg,#0088cc,#005fa3)" }}>
-          <div className="label" style={{ color: "#a8d8f0", marginBottom: 6 }}>📱 LIVE COACHING</div>
-          <h3 className="heading" style={{ fontSize: "clamp(14px,3.5vw,17px)", color: "#fff", marginBottom: 8 }}>Telegram Bot Active</h3>
-          <p style={{ fontSize: 12, color: "#cce8f7", lineHeight: 1.6, marginBottom: 12 }}>
-            5 daily touchpoints push directly to your phone.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-            {TOUCHPOINTS.map((tp, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, color: "#cce8f7" }}>{tp.label}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: "monospace" }}>{tp.time}</span>
-              </div>
-            ))}
-          </div>
-          <a
-            href="https://t.me/liamaccountabilitybot"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "block", background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: 10, textAlign: "center", color: "#fff", fontFamily: "'Nunito Sans',sans-serif", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
-          >
-            Open Telegram →
-          </a>
+        {/* Live Coaching */}
+        <div className="card" style={{background:"linear-gradient(135deg,#0088cc,#005fa3)",padding:16}}>
+          <div className="eyebrow" style={{color:"#a8d8f0",marginBottom:6}}>📱 Live Coaching</div>
+          <h3 style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:8}}>Telegram Bot Active</h3>
+          <p style={{fontSize:12,color:"#cce8f7",lineHeight:1.6,marginBottom:12}}>5 touchpoints push to your phone daily.</p>
+          {TPTS.map(([t,l])=>(<div key={t} style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:12,color:"#cce8f7"}}>{l}</span><span className="mono" style={{fontSize:11,color:"#fff"}}>{t}</span></div>))}
+          <a href="https://t.me/liamaccountabilitybot" target="_blank" rel="noopener noreferrer" style={{display:"block",marginTop:14,background:"rgba(255,255,255,.15)",borderRadius:8,padding:10,textAlign:"center",color:"#fff",fontFamily:"'Nunito Sans',sans-serif",fontSize:13,fontWeight:700,textDecoration:"none"}}>Open Telegram →</a>
         </div>
 
-        {/* Calendar Integration */}
-        <div className="card" style={{ padding: 16 }}>
-          <div className="label" style={{ color: "#1c3d2e", marginBottom: 6 }}>📅 CALENDAR SYNC</div>
-          <h3 className="heading" style={{ fontSize: "clamp(13px,3.2vw,16px)", color: "#18181b", marginBottom: 8 }}>Add All Events to Calendar</h3>
-          <p style={{ fontSize: 12, color: "#71717a", lineHeight: 1.6, marginBottom: 14 }}>
-            Downloads a .ics file with every recurring event — morning routine, daily touchpoints, and weekly reviews. Alerts built in.
-          </p>
-
-          {/* What's included */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-            {[
-              { time: "5:00am", label: "🏋️ Gym", sub: "Daily · 15min alert", color: "#1c3d2e" },
-              { time: "6:25am", label: "📊 Dashboard Check-In", sub: "Daily · fires at 6:25", color: "#1e3a5f" },
-              { time: "8:00am", label: "☀️ Morning Briefing", sub: "Daily · 10min alert", color: "#c9a96e" },
-              { time: "1:00pm", label: "⚡ Midday Pulse", sub: "Daily · 5min alert", color: "#d97706" },
-              { time: "8:00pm", label: "🌙 Evening Review", sub: "Daily · 10min alert", color: "#7c3d00" },
-              { time: "10:00pm", label: "😴 Pre-Sleep", sub: "Daily · 15min alert", color: "#4a1d96" },
-            ].map(item => (
-              <div key={item.time} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #fafaf9" }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: item.color, minWidth: 46 }}>{item.time}</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#18181b" }}>{item.label}</div>
-                    <div style={{ fontSize: 10, color: "#a1a1aa" }}>{item.sub}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 4, fontStyle: "italic" }}>+ Weekly financial review, family planning, personal dev</div>
-          </div>
-
-          <a
-            href="/api/calendar"
-            download="liam-accountability.ics"
-            style={{
-              display: "block", background: "#1c3d2e", color: "#fff", borderRadius: 10,
-              padding: "11px 0", textAlign: "center", fontFamily: "'Nunito Sans',sans-serif",
-              fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 10
-            }}
-          >
-            ⬇ Download Calendar File (.ics)
-          </a>
-          <p style={{ fontSize: 11, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
-            Opens in Apple Calendar, Google Calendar, or Outlook. Tap once — all events sync permanently.
-          </p>
+        {/* Calendar */}
+        <div className="card cp">
+          <div className="eyebrow" style={{color:"#1c3d2e",marginBottom:6}}>📅 Calendar Sync</div>
+          <h3 style={{fontSize:15,fontWeight:800,marginBottom:8}}>Add All Events</h3>
+          <p style={{fontSize:12,color:"#a1a1aa",lineHeight:1.6,marginBottom:12}}>Downloads .ics file — opens in Apple Calendar, Google, or Outlook. Alerts built in.</p>
+          {[["5:00am","🏋️ Gym","Daily · 15min alert"],["8:00am","☀️ Morning Briefing","Daily · 10min alert"],["1:00pm","⚡ Midday Pulse","Daily · 5min alert"],["8:00pm","🌙 Evening Review","Daily · 10min alert"],["10:00pm","😴 Pre-Sleep","Daily · 15min alert"]].map(([t,l,s])=>(
+            <div key={t} className="divrow"><div><div style={{fontSize:12,fontWeight:700}}>{l}</div><div style={{fontSize:10,color:"#a1a1aa"}}>{s}</div></div><span className="mono" style={{fontSize:11,fontWeight:700,color:"#1c3d2e"}}>{t}</span></div>
+          ))}
+          <a href="/api/calendar" download="liam-accountability.ics" style={{display:"block",marginTop:14,background:"#1c3d2e",color:"#fff",borderRadius:10,padding:"11px 0",textAlign:"center",fontFamily:"'Nunito Sans',sans-serif",fontSize:13,fontWeight:700,textDecoration:"none"}}>⬇ Download Calendar File</a>
         </div>
 
         {/* Morning Routine */}
-        <div className="card" style={{ padding: 16 }}>
-          <div className="label" style={{ color: "#71717a", marginBottom: 8 }}>⏰ MORNING ROUTINE</div>
-          {[
-            ["4:45am", "Wake up · water · no phone"],
-            ["5:00am", "🏋️ Gym"],
-            ["6:00am", "Shower → leader mode"],
-            ["6:15am", "Protein breakfast · zero scroll"],
-            ["6:25am", "📊 Dashboard · set #1 task"],
-            ["6:35am", "Family time (15 min)"],
-            ["6:50am", "Pack · mental run top 3"],
-            ["7:00am", "Out the door with a plan"],
-          ].map(([time, label]) => (
-            <div key={time} style={{ display: "flex", gap: 10, padding: "6px 0", borderBottom: "1px solid #fafaf9" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#1c3d2e", fontFamily: "monospace", whiteSpace: "nowrap", minWidth: 44 }}>{time}</span>
-              <span style={{ fontSize: 12, color: "#52525b" }}>{label}</span>
-            </div>
+        <div className="card cp">
+          <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:10}}>⏰ Morning Routine</div>
+          {[["4:45","Wake up · water · no phone"],["5:00","🏋️ Gym"],["6:00","Shower → leader mode"],["6:15","Breakfast · zero scroll"],["6:25","📊 Dashboard · set #1"],["6:35","Family time (15 min)"],["6:50","Pack · top 3 priorities"],["7:00","Out the door with a plan"]].map(([t,l])=>(
+            <div key={t} className="rtrow"><span className="mono" style={{fontSize:11,color:"#1c3d2e",minWidth:38}}>{t}</span><span style={{fontSize:12,color:"#52525b"}}>{l}</span></div>
           ))}
         </div>
 
-        {/* Coach reminder */}
-        <div className="card" style={{ padding: 16, background: "#f7f4ef", border: "1px dashed #d0c9be" }}>
-          <div className="label" style={{ color: "#a1a1aa", marginBottom: 6 }}>💡 COACH'S REMINDER</div>
-          <p style={{ fontSize: 13, fontStyle: "italic", color: "#52525b", lineHeight: 1.7 }}>
-            "You don't need certainty before action. You need self-trust. The goal isn't to solve your whole life. It's to stabilize the next step."
-          </p>
-          <p style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: "#1c3d2e" }}>WHAT ARE YOU GOING TO DO NEXT?</p>
+        {/* Reminder */}
+        <div className="card cp" style={{background:"#f7f4ef",border:"1px dashed #e8e2d9"}}>
+          <div className="eyebrow" style={{color:"#a1a1aa",marginBottom:8}}>💡 Coach's Reminder</div>
+          <p style={{fontSize:13,fontStyle:"italic",color:"#52525b",lineHeight:1.75}}>"You don't need certainty before action. You need self-trust. The goal isn't to solve your whole life. It's to stabilize the next step."</p>
+          <p style={{marginTop:12,fontSize:12,fontWeight:800,color:"#1c3d2e"}}>WHAT ARE YOU GOING TO DO NEXT?</p>
         </div>
       </div>
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast&&<div className="toast">{toast}</div>}
     </div>
   );
 }
